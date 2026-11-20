@@ -1,0 +1,12 @@
+flowchart TD
+  A[POST /api/research/search] --> B[Research Service]
+  B --> C[Selected connectors]
+  C --> D[Normalize + dedupe + store]
+  D --> E[Embed pending documents]
+  E --> F[pgvector retrieval]
+  F --> G[Rank R = .45S + .25K + .20F + .10Q]
+  G --> H[Context builder]
+  H --> I[Ollama synthesis]
+  I --> J[Citation validation]
+  J --> K[Persist result + evidence]
+  K --> L[JSON response]

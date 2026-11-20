@@ -1,0 +1,11 @@
+erDiagram
+  SOURCES ||--o{ DOCUMENTS : provides
+  DOCUMENTS ||--o| DOCUMENT_EMBEDDINGS : has
+  TOPICS ||--o{ TOPIC_DOCUMENTS : contains
+  DOCUMENTS ||--o{ TOPIC_DOCUMENTS : assigned
+  TOPICS ||--o{ TREND_OBSERVATIONS : measured
+  RESEARCH_QUERIES ||--o| RESEARCH_RESULTS : produces
+  RESEARCH_RESULTS ||--o{ RESEARCH_EVIDENCE : cites
+  DOCUMENTS ||--o{ RESEARCH_EVIDENCE : supports
+  SAVED_ITEMS }o--|| RESEARCH_RESULTS : saves
+  SAVED_ITEMS }o--|| TOPICS : saves

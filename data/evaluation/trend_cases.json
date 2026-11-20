@@ -1,0 +1,89 @@
+{
+  "_note": "SYNTHETIC lifecycle cases: weekly document volumes (oldest first) with the label a reviewer expects. They test the rule set for regressions; they are NOT measurements on real data.",
+  "cases": [
+    {
+      "name": "steady low noise",
+      "volumes": [
+        2,
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "expected": null
+    },
+    {
+      "name": "flat plateau is not a peak",
+      "volumes": [
+        10,
+        10,
+        10,
+        10,
+        10,
+        10
+      ],
+      "expected": null
+    },
+    {
+      "name": "tiny-base spike must not label",
+      "volumes": [
+        2,
+        2,
+        2,
+        2,
+        1,
+        2
+      ],
+      "expected": null
+    },
+    {
+      "name": "steady growth, not accelerating",
+      "volumes": [
+        10,
+        11,
+        12,
+        14,
+        16,
+        19
+      ],
+      "expected": "growing"
+    },
+    {
+      "name": "accelerating growth",
+      "volumes": [
+        2,
+        3,
+        4,
+        6,
+        9,
+        14
+      ],
+      "expected": "emerging"
+    },
+    {
+      "name": "rise then plateau",
+      "volumes": [
+        2,
+        4,
+        8,
+        12,
+        12,
+        12
+      ],
+      "expected": "peaking"
+    },
+    {
+      "name": "steep fall",
+      "volumes": [
+        12,
+        14,
+        15,
+        13,
+        9,
+        4
+      ],
+      "expected": "declining"
+    }
+  ]
+}

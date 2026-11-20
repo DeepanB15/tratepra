@@ -1,0 +1,8 @@
+{
+  "_note": "TEMPLATE, intentionally unlabelled. Retrieval metrics need real ground truth: run the queries against collected data, review the results by hand, and list the URLs of documents that truly answer each query in `relevant_urls`. Queries with an empty list are skipped and reported as unlabelled; no score is invented for them.",
+  "queries": [
+    {"query": "AI coding agents", "time_range": "30d", "relevant_urls": []},
+    {"query": "open-weight language model releases", "time_range": "30d", "relevant_urls": []},
+    {"query": "on-device LLM inference", "time_range": "30d", "relevant_urls": []}
+  ]
+}

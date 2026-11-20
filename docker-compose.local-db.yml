@@ -1,0 +1,27 @@
+# Optional: run PostgreSQL + pgvector locally instead of Supabase.
+#   docker compose -f docker-compose.yml -f docker-compose.local-db.yml up --build
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: tratepra
+      POSTGRES_PASSWORD: tratepra
+      POSTGRES_DB: tratepra
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tratepra"]
+      interval: 5s
+      retries: 10
+
+  backend:
+    environment:
+      DATABASE_URL: postgresql+psycopg2://tratepra:tratepra@db:5432/tratepra
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

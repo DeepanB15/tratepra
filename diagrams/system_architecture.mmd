@@ -1,0 +1,25 @@
+flowchart LR
+  User --> FE[React + TypeScript + Tailwind]
+  FE --> API[FastAPI]
+  subgraph Research[AI Research Engine]
+    QP[Query Processor] --> RT[Retriever] --> RK[Relevance Ranker] --> CB[Context Builder] --> SY[Ollama Synthesis] --> CV[Citation Validation]
+  end
+  subgraph Trend[Trend Intelligence Engine]
+    PP[Preprocess] --> EM[Sentence Transformers] --> BT[BERTopic] --> TA[Temporal Analysis] --> TS[Trend Score] --> LC[Lifecycle]
+  end
+  subgraph Ingest[Unified Ingestion]
+    COL[Collector] --> NOR[Normalizer] --> DED[Deduplicator]
+  end
+  subgraph Conn[Connectors]
+    GN[Google News RSS]
+    YT[YouTube Data API]
+    GT[Google Trends]
+    RD[Reddit API + OAuth]
+  end
+  API --> Research
+  API --> Trend
+  Research --> Ingest
+  Ingest --> Conn
+  Ingest --> DB[(PostgreSQL + pgvector)]
+  Research --> DB
+  Trend --> DB

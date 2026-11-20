@@ -1,0 +1,15 @@
+flowchart TD
+  A[Normalized documents] --> B[Preprocess: clean, language, dedupe]
+  B --> C[Sentence Transformer embeddings]
+  C --> D[UMAP -> HDBSCAN -> c-TF-IDF = BERTopic]
+  D --> E[Weekly topic volumes]
+  E --> G[Growth]
+  E --> M[Momentum]
+  D --> N[Novelty vs previous topics]
+  D --> En[Engagement]
+  D --> S[Search interest]
+  D --> X[Cross-source]
+  G & M & N & En & S & X --> T[Trend Score 0-100, renormalised over available signals]
+  E --> L[Lifecycle]
+  T --> P[(Append trend_observations)]
+  L --> P
