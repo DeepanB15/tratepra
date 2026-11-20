@@ -1,3 +1,4 @@
+
 import uuid
 from datetime import datetime, timezone
 
@@ -38,7 +39,7 @@ class Source(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
     key: Mapped[str] = mapped_column(String(50), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(100))
-    quality_weight: Mapped[float] = mapped_column(Float, default=70.0)  # 0-100 prior
+    quality_weight: Mapped[float] = mapped_column(Float, default=70.0)
     last_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -51,7 +52,6 @@ class Document(Base):
     __table_args__ = (
         UniqueConstraint("source_id", "external_id", name="uq_doc_source_external"),
         Index("ix_documents_source_published", "source_id", "published_at"),
-        # Keyword half of hybrid retrieval (see research/retriever.py)
         Index(
             "ix_documents_fts",
             func.to_tsvector(literal_column("'english'"), literal_column("normalized_text")),
@@ -75,7 +75,9 @@ class Document(Base):
 
     source: Mapped[Source] = relationship(back_populates="documents")
     embedding: Mapped["DocumentEmbedding | None"] = relationship(
-        back_populates="document", uselist=False, cascade="all, delete-orphan"
+        back_populates="document",
+        uselist=False,
+        cascade="all, delete-orphan",
     )
 
 
@@ -92,11 +94,16 @@ class DocumentEmbedding(Base):
     )
 
     document_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("documents.id", ondelete="CASCADE"), primary_key=True
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        primary_key=True,
     )
     embedding = mapped_column(Vector(EMBED_DIM))
     model: Mapped[str] = mapped_column(String(200))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    text_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=_now,
+    )
 
     document: Mapped[Document] = relationship(back_populates="embedding")
 
@@ -165,7 +172,11 @@ class ResearchQuery(Base):
     time_range: Mapped[str] = mapped_column(String(20), default="30d")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
 
-    result: Mapped["ResearchResult | None"] = relationship(back_populates="query", uselist=False, cascade="all, delete-orphan")
+    result: Mapped["ResearchResult | None"] = relationship(
+        back_populates="query",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
 
 
 class ResearchResult(Base):
@@ -184,7 +195,10 @@ class ResearchResult(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     query: Mapped[ResearchQuery] = relationship(back_populates="result")
-    evidence: Mapped[list["ResearchEvidence"]] = relationship(back_populates="result", cascade="all, delete-orphan")
+    evidence: Mapped[list["ResearchEvidence"]] = relationship(
+        back_populates="result",
+        cascade="all, delete-orphan",
+    )
 
 
 class ResearchEvidence(Base):
@@ -206,7 +220,7 @@ class SavedItem(Base):
     __tablename__ = "saved_items"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
-    item_type: Mapped[str] = mapped_column(String(20))  # research | trend
+    item_type: Mapped[str] = mapped_column(String(20))
     item_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), index=True)
     title: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
@@ -223,13 +237,13 @@ class CollectionLog(Base):
     run_id: Mapped[str] = mapped_column(String(36), index=True, default="")
     source_key: Mapped[str] = mapped_column(String(50), index=True)
     query: Mapped[str] = mapped_column(Text)
-    status: Mapped[str] = mapped_column(String(30))  # ok | error | quota | rate_limit | auth | unavailable
+    status: Mapped[str] = mapped_column(String(30))
     fetched: Mapped[int] = mapped_column(Integer, default=0)
-    inserted: Mapped[int] = mapped_column(Integer, default=0)  # results accepted and stored
+    inserted: Mapped[int] = mapped_column(Integer, default=0)
     duplicates: Mapped[int] = mapped_column(Integer, default=0)
     out_of_window: Mapped[int] = mapped_column(Integer, default=0)
     undated: Mapped[int] = mapped_column(Integer, default=0)
-    rejected: Mapped[int] = mapped_column(Integer, default=0)  # failed required-field validation
+    rejected: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     duration_ms: Mapped[int] = mapped_column(Integer, default=0)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

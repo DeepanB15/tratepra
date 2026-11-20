@@ -1,3 +1,4 @@
+
 """Shared ingestion pipeline: parallel fetch -> date filter -> normalize -> dedupe -> persist.
 
 Network I/O runs in a thread pool (one task per connector). Database writes happen afterwards on
@@ -17,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.connectors import CONNECTOR_CLASSES, get_connector
 from app.core.exceptions import ConnectorError
+from app.ingestion.article_enrichment import enrich_records
 from app.ingestion.deduplicator import dedupe_batch, filter_existing
 from app.ingestion.filters import filter_by_date
 from app.ingestion.normalizer import normalize_record, validation_error
@@ -49,34 +51,62 @@ def _fetch_one(key: str, query: str, time_range: str) -> FetchOutcome:
     started, started_at = time.time(), _now()
 
     def done(records, status="ok", error=None) -> FetchOutcome:
-        return FetchOutcome(key, records, status, error, int((time.time() - started) * 1000), started_at, _now())
+        return FetchOutcome(
+            key,
+            records,
+            status,
+            error,
+            int((time.time() - started) * 1000),
+            started_at,
+            _now(),
+        )
 
     try:
         return done(get_connector(key).search(query, time_range))
     except ConnectorError as exc:
         return done([], exc.kind, exc.message)
-    except Exception as exc:  # unexpected provider/parse failure: record, don't hide
+    except Exception as exc:
         log.exception("Connector %s failed", key)
         return done([], "error", str(exc))
 
 
-def fetch_sources(keys: list[str], query: str, time_range: str, max_workers: int = MAX_WORKERS) -> dict[str, FetchOutcome]:
+def fetch_sources(
+    keys: list[str],
+    query: str,
+    time_range: str,
+    max_workers: int = MAX_WORKERS,
+) -> dict[str, FetchOutcome]:
     """Run the selected connectors concurrently. Result order follows `keys`."""
     keys = [k for k in dict.fromkeys(keys) if k in CONNECTOR_CLASSES]
+
     if not keys:
         return {}
+
     outcomes: dict[str, FetchOutcome] = {}
+
     with ThreadPoolExecutor(max_workers=min(max_workers, len(keys))) as pool:
-        futures = {pool.submit(_fetch_one, k, query, time_range): k for k in keys}
+        futures = {
+            pool.submit(_fetch_one, k, query, time_range): k
+            for k in keys
+        }
+
         for fut in as_completed(futures):
             outcomes[futures[fut]] = fut.result()
+
     return {k: outcomes[k] for k in keys}
 
 
-def persist_outcome(db: Session, outcome: FetchOutcome, query: str, time_range: str, run_id: str = "") -> dict[str, Any]:
-    """Filter, normalize, dedupe and store one source's records. Never raises."""
+def persist_outcome(
+    db: Session,
+    outcome: FetchOutcome,
+    query: str,
+    time_range: str,
+    run_id: str = "",
+) -> dict[str, Any]:
+    """Filter, normalize, dedupe, optionally enrich and store one source's records."""
     key = outcome.source
     source = db.scalar(select(Source).where(Source.key == key))
+
     status: dict[str, Any] = {
         "run_id": run_id,
         "source": key,
@@ -92,50 +122,87 @@ def persist_outcome(db: Session, outcome: FetchOutcome, query: str, time_range: 
         "started_at": outcome.started_at,
         "completed_at": outcome.completed_at,
     }
+
     if outcome.status == "ok" and source is not None:
         try:
             normalized = []
-            for r in outcome.records:
-                doc = normalize_record(r)
+
+            for record in outcome.records:
+                doc = normalize_record(record)
                 reason = validation_error(doc)
+
                 if reason:
                     status["rejected"] += 1
                     log.warning("Rejected %s record: %s", key, reason)
                 else:
                     normalized.append(doc)
+
             filtered = filter_by_date(normalized, time_range)
-            status["out_of_window"], status["undated"] = filtered.out_of_window, filtered.undated
+
+            status["out_of_window"] = filtered.out_of_window
+            status["undated"] = filtered.undated
+
+            # Deduplicate using original RSS metadata before enrichment.
             docs = dedupe_batch(filtered.kept)
+
             new_docs, dup = filter_existing(db, docs)
-            status["duplicates"] = dup + (len(filtered.kept) - len(docs))
-            for d in new_docs:
+
+            status["duplicates"] = (
+                dup + (len(filtered.kept) - len(docs))
+            )
+
+            # Enrich only new Google News records.
+            # RSS records remain valid if article fetching fails.
+            if key == "google_news" and new_docs:
+                new_docs = enrich_records(new_docs)
+
+            # Add extracted article text to normalized_text.
+            # Keep content_hash based on the original RSS title/description.
+            for doc in new_docs:
+                article_text = doc.pop("_article_text", None)
+
+                if article_text:
+                    doc["normalized_text"] = (
+                        f"{doc['normalized_text']}\n\n{article_text}"
+                    )
+
+            for doc in new_docs:
                 db.add(
                     Document(
                         source_id=source.id,
-                        external_id=d["external_id"],
-                        title=d["title"],
-                        description=d["description"],
-                        normalized_text=d["normalized_text"],
-                        url=d["url"],
-                        canonical_url=d["canonical_url"],
-                        content_hash=d["content_hash"],
-                        published_at=d["published_at"],
-                        collected_at=d["collected_at"] or datetime.now(timezone.utc),
-                        engagement=d["engagement"],
-                        metadata_=d["metadata"],
+                        external_id=doc["external_id"],
+                        title=doc["title"],
+                        description=doc["description"],
+                        normalized_text=doc["normalized_text"],
+                        url=doc["url"],
+                        canonical_url=doc["canonical_url"],
+                        content_hash=doc["content_hash"],
+                        published_at=doc["published_at"],
+                        collected_at=(
+                            doc["collected_at"] or datetime.now(timezone.utc)
+                        ),
+                        engagement=doc["engagement"],
+                        metadata_=doc["metadata"],
                     )
                 )
+
             status["inserted"] = len(new_docs)
             db.commit()
+
         except Exception as exc:
             db.rollback()
             log.exception("Persisting %s failed", key)
-            status.update(status="error", error=f"Persistence failed: {exc}", inserted=0)
+            status.update(
+                status="error",
+                error=f"Persistence failed: {exc}",
+                inserted=0,
+            )
 
     if source is not None:
         source.last_status = status["status"]
         source.last_error = status["error"]
         source.last_run_at = datetime.now(timezone.utc)
+
     db.add(
         CollectionLog(
             run_id=run_id,
@@ -154,16 +221,44 @@ def persist_outcome(db: Session, outcome: FetchOutcome, query: str, time_range: 
             completed_at=outcome.completed_at,
         )
     )
+
     db.commit()
     return status
 
 
-def collect(db: Session, query: str, sources: list[str] | None, time_range: str = "30d") -> dict[str, dict[str, Any]]:
+def collect(
+    db: Session,
+    query: str,
+    sources: list[str] | None,
+    time_range: str = "30d",
+) -> dict[str, dict[str, Any]]:
     keys = sources or list(CONNECTOR_CLASSES)
     run_id = str(uuid.uuid4())
+
     outcomes = fetch_sources(keys, query, time_range)
-    return {k: persist_outcome(db, o, query, time_range, run_id) for k, o in outcomes.items()}
+
+    return {
+        key: persist_outcome(db, outcome, query, time_range, run_id)
+        for key, outcome in outcomes.items()
+    }
 
 
-def collect_source(db: Session, source_key: str, query: str, time_range: str) -> dict[str, Any]:
-    return collect(db, query, [source_key], time_range).get(source_key, {"source": source_key, "status": "error", "error": "Unknown source"})
+def collect_source(
+    db: Session,
+    source_key: str,
+    query: str,
+    time_range: str,
+) -> dict[str, Any]:
+    return collect(
+        db,
+        query,
+        [source_key],
+        time_range,
+    ).get(
+        source_key,
+        {
+            "source": source_key,
+            "status": "error",
+            "error": "Unknown source",
+        },
+    )

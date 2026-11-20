@@ -39,7 +39,7 @@ def test_trend_quality_metrics():
 
 
 def test_lifecycle_synthetic_cases_pass():
-    path = Path(__file__).resolve().parents[3] / "data" / "evaluation" / "trend_cases.json"
+    path = Path(__file__).resolve().parents[2] / "data" / "evaluation" / "trend_cases.json"
     result = lifecycle_accuracy(json.loads(path.read_text())["cases"])
     assert result["wrong"] == [], result["wrong"]
 
