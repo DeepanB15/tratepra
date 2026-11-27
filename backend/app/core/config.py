@@ -55,6 +55,27 @@ class Settings(BaseSettings):
     trend_topic_match_threshold: float = 0.80  # centroid cosine needed to keep a topic's identity
     lifecycle_min_abs_increase: int = 3  # spike guard: a jump smaller than this many documents is not "emerging"
     trend_formula_version: str = "v1.0"
+    trend_n_windows: int = 6  # number of consecutive windows analysed (lookback = window_days * n_windows)
+
+    # Topic identity across runs. Pairs at/above `trend_topic_match_threshold` can be matched (one-to-one).
+    # Pairs between the floor and the threshold are never silently matched: they are reported as an
+    # uncertain identity, or as a potential split / merge when another topic competes for the same stored one.
+    trend_identity_floor: float = 0.65
+
+    # Operational activity state (distinct from the analytical lifecycle). Measured in COMPLETED runs and
+    # relative to the latest completed run, so failed runs or a collection outage never age a topic.
+    trend_stale_after_missed_runs: int = 1  # absent from this many latest completed runs -> stale
+    trend_inactive_after_missed_runs: int = 4  # absent from this many -> inactive
+    trend_stale_after_days: float = 14.0  # last observation this long before the latest completed run -> stale
+    trend_inactive_after_days: float = 45.0
+    trend_analysis_overdue_days: float = 3.0  # data-freshness warning when the latest completed run is older than this
+    trend_running_timeout_minutes: int = 60  # a 'running' row older than this is treated as a crashed run
+    trend_new_topic_days: float = 14.0  # a topic first seen within this window is "newly discovered"
+
+    # Topic-model quality guards (diagnostic flags only; documents are never forced into topics)
+    topic_broad_share: float = 0.40  # a topic holding more than this share of clustered docs is flagged broad
+    topic_name_min_coverage: float = 0.50  # share of member docs that must contain a name term
+    topic_high_noise_share: float = 0.60
 
     # Lifecycle thresholds (configurable)
     lifecycle_emerging_min_growth: float = 25.0

@@ -10,4 +10,5 @@ from app.models.entities import (  # noqa: F401
     Topic,
     TopicDocument,
     TrendObservation,
+    TrendRun,
 )

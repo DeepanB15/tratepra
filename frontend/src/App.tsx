@@ -3,6 +3,7 @@ import Layout from "./components/layout/Layout";
 import History from "./pages/History";
 import Home from "./pages/Home";
 import Research from "./pages/Research";
+import Runs from "./pages/Runs";
 import Saved from "./pages/Saved";
 import Sources from "./pages/Sources";
 import Settings from "./pages/Settings";
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="/research/:id" element={<Research />} />
         <Route path="/trends" element={<Trends />} />
         <Route path="/trends/:id" element={<TrendDetail />} />
+        <Route path="/runs" element={<Runs />} />
         <Route path="/saved" element={<Saved />} />
         <Route path="/history" element={<History />} />
         <Route path="/sources" element={<Sources />} />

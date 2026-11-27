@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     JSON,
+    Boolean,
     DateTime,
     Float,
     ForeignKey,
@@ -12,6 +13,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    CheckConstraint,
     UniqueConstraint,
     func,
     literal_column,
@@ -108,6 +110,42 @@ class DocumentEmbedding(Base):
     document: Mapped[Document] = relationship(back_populates="embedding")
 
 
+class TrendRun(Base):
+    """One execution record of the trend pipeline.
+
+    run_key is a deterministic fingerprint of (eligible documents, analysis window, model configuration,
+    embedding model, formula version). A COMPLETED run with the same key is returned instead of re-running,
+    so repeating an identical analysis cannot append duplicate observations.
+    """
+
+    __tablename__ = "trend_runs"
+    __table_args__ = (
+        UniqueConstraint("run_key", name="uq_trend_runs_run_key"),
+        CheckConstraint("status IN ('pending','running','completed','failed')", name="ck_trend_runs_status"),
+        Index("ix_trend_runs_status_completed", "status", "completed_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    run_key: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    window_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    documents_available: Mapped[int] = mapped_column(Integer, default=0)
+    documents_processed: Mapped[int] = mapped_column(Integer, default=0)
+    documents_rejected: Mapped[int] = mapped_column(Integer, default=0)
+    noise_documents: Mapped[int] = mapped_column(Integer, default=0)
+    topics_discovered: Mapped[int] = mapped_column(Integer, default=0)
+    topics_created: Mapped[int] = mapped_column(Integer, default=0)
+    topics_matched: Mapped[int] = mapped_column(Integer, default=0)
+    model_version: Mapped[str] = mapped_column(String(100), default="")
+    formula_version: Mapped[str] = mapped_column(String(20), default="")
+    configuration: Mapped[dict] = mapped_column(JSON, default=dict)
+    diagnostics: Mapped[dict] = mapped_column(JSON, default=dict)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class Topic(Base):
     __tablename__ = "topics"
 
@@ -118,6 +156,13 @@ class Topic(Base):
     embedding = mapped_column(Vector(EMBED_DIM), nullable=True)
     model_version: Mapped[str] = mapped_column(String(100), default="")
     run_id: Mapped[str] = mapped_column(String(64), index=True, default="")
+    # Phase 1: identity / freshness / naming review. last_observed_at only moves on a COMPLETED run, so a
+    # failed run can never make a topic look stale or inactive.
+    last_run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("trend_runs.id", ondelete="SET NULL"), nullable=True)
+    last_observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    name_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    needs_review: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    review_reasons: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
 
@@ -139,10 +184,16 @@ class TrendObservation(Base):
     """Append-only history. Never overwritten."""
 
     __tablename__ = "trend_observations"
-    __table_args__ = (Index("ix_trend_obs_topic_created", "topic_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_trend_obs_topic_created", "topic_id", "created_at"),
+        # One observation per topic per run: a run can never append duplicates for the same topic.
+        # Partial so that legacy rows (run_id IS NULL, created before TrendRun existed) are untouched.
+        Index("uq_trend_obs_topic_run", "topic_id", "run_id", unique=True, postgresql_where=literal_column("run_id IS NOT NULL")),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
     topic_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("topics.id", ondelete="CASCADE"), index=True)
+    run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("trend_runs.id", ondelete="SET NULL"), nullable=True, index=True)
     window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     document_volume: Mapped[int] = mapped_column(Integer, default=0)

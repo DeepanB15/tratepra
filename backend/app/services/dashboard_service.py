@@ -39,6 +39,7 @@ def overview(db: Session) -> dict:
         "sources_analyzed": sources_with_data,
         "document_count": doc_count,
         "active_topic_count": len(trends),
+        "stale_topic_count": trend_service.search_trends(db, activity_state="stale", limit=1)[1],
         "lifecycle_distribution": {**lifecycle, "unlabelled": unlabelled},
         "sources": sources,
         "recent_collections": logs,

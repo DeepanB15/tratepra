@@ -1,3 +1,4 @@
+import hashlib
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -21,7 +22,7 @@ def add_doc(db, source_key, ext, title, desc="", days_old=1):
     )
     db.add(d)
     db.flush()
-    db.add(DocumentEmbedding(document_id=d.id, embedding=fake_embed([d.normalized_text])[0].tolist(), model="fake"))
+    db.add(DocumentEmbedding(document_id=d.id, embedding=fake_embed([d.normalized_text])[0].tolist(), model="fake", text_hash=hashlib.sha256(d.normalized_text.encode()).hexdigest()))
     db.commit()
     return d
 

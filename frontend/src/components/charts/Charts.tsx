@@ -46,3 +46,35 @@ export function ScoreHistoryChart({ points }: { points: { label: string; score: 
     </div>
   );
 }
+
+/** Points contributed by each signal to the final score (only signals that had data). */
+export function ContributionChart({ rows }: { rows: { label: string; points: number | null; weight: number }[] }) {
+  const data = rows.filter((r) => r.points !== null).map((r) => ({ label: r.label, points: Number((r.points as number).toFixed(2)) }));
+  if (!data.length) return <p className="text-xs text-slate-500">No signal contributed to a score.</p>;
+  return (
+    <ResponsiveContainer width="100%" height={Math.max(120, data.length * 34)}>
+      <BarChart data={data} layout="vertical" margin={{ left: 8, right: 16 }}>
+        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+        <XAxis type="number" tick={{ fontSize: 11 }} />
+        <YAxis type="category" dataKey="label" width={110} tick={{ fontSize: 11 }} />
+        <Tooltip formatter={(v: number) => [`${v} points`, "Contribution"]} />
+        <Bar dataKey="points" fill="#3b6f6c" radius={[0, 3, 3, 0]} isAnimationActive={false} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+/** Observed document volume per analysis run (real stored observations, oldest first). */
+export function HistoryVolumeChart({ points }: { points: { label: string; volume: number; legacy: boolean }[] }) {
+  return (
+    <ResponsiveContainer width="100%" height={200}>
+      <BarChart data={points}>
+        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+        <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+        <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+        <Tooltip formatter={(v: number, _n, p) => [`${v} documents${(p.payload as { legacy: boolean }).legacy ? " (legacy observation, no run id)" : ""}`, "Volume"]} />
+        <Bar dataKey="volume" fill="#3b6f6c" radius={[3, 3, 0, 0]} isAnimationActive={false} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}

@@ -2,6 +2,8 @@
 import re
 from html import unescape
 
+import numpy as np
+
 _URL = re.compile(r"https?://\S+")
 _TAG = re.compile(r"<[^>]+>")
 _WS = re.compile(r"\s+")
@@ -45,23 +47,77 @@ def is_probably_english(text: str, min_ascii_ratio: float = 0.9) -> bool:
     return sum(1 for w in words if w in _EN_STOP) / len(words) >= MIN_STOPWORD_RATIO
 
 
-def prepare(docs: list[dict]) -> tuple[list[dict], dict]:
-    """docs: dicts with at least 'id' and 'text'. Returns (kept, stats)."""
+REJECT_REASONS = (
+    "empty_text", "too_short", "non_english", "duplicate_content",
+    "invalid_embedding", "embedding_dimension_mismatch", "embedding_model_mismatch",
+)
+SAMPLE_LIMIT = 5
+
+
+def validate_embedding(vec, expected_dim: int | None) -> str | None:
+    """Return a rejection reason, or None when the vector is usable."""
+    try:
+        arr = np.asarray(vec, dtype=np.float32)
+    except (TypeError, ValueError):
+        return "invalid_embedding"
+    if arr.ndim != 1 or arr.size == 0:
+        return "invalid_embedding"
+    if expected_dim is not None and arr.size != expected_dim:
+        return "embedding_dimension_mismatch"
+    if not np.all(np.isfinite(arr)) or float(np.linalg.norm(arr)) == 0.0:
+        return "invalid_embedding"
+    return None
+
+
+def prepare(docs: list[dict], expected_dim: int | None = None, expected_model: str | None = None) -> tuple[list[dict], dict]:
+    """docs: dicts with 'id' and 'text' (optionally 'vec' and 'embedding_model').
+
+    Returns (kept, stats). Nothing is dropped silently: every rejection is counted by reason in `stats`
+    (keys kept from the original contract: input/too_short/non_english/duplicate/kept) and up to
+    SAMPLE_LIMIT document ids per reason are listed in stats['rejected_samples'].
+    """
     kept, seen = [], set()
-    stats = {"input": len(docs), "too_short": 0, "non_english": 0, "duplicate": 0}
+    stats: dict = {"input": len(docs), "too_short": 0, "non_english": 0, "duplicate": 0}
+    reasons = {r: 0 for r in REJECT_REASONS}
+    samples: dict[str, list[str]] = {}
+
+    def reject(reason: str, doc_id) -> None:
+        reasons[reason] += 1
+        samples.setdefault(reason, [])
+        if len(samples[reason]) < SAMPLE_LIMIT:
+            samples[reason].append(str(doc_id))
+
     for d in docs:
-        t = clean_for_topics(d["text"])
+        if expected_model is not None and d.get("embedding_model") not in (None, expected_model):
+            reject("embedding_model_mismatch", d.get("id"))
+            continue
+        if "vec" in d:
+            bad = validate_embedding(d["vec"], expected_dim)
+            if bad:
+                reject(bad, d.get("id"))
+                continue
+        raw = d.get("text")
+        if not raw or not str(raw).strip():
+            reject("empty_text", d.get("id"))
+            continue
+        t = clean_for_topics(raw)
         if len(t) < MIN_CHARS:
             stats["too_short"] += 1
+            reject("too_short", d.get("id"))
             continue
         if not is_probably_english(t):
             stats["non_english"] += 1
+            reject("non_english", d.get("id"))
             continue
         key = t.lower()
         if key in seen:
             stats["duplicate"] += 1
+            reject("duplicate_content", d.get("id"))
             continue
         seen.add(key)
         kept.append({**d, "text": t})
     stats["kept"] = len(kept)
+    stats["rejected"] = sum(reasons.values())
+    stats["reasons"] = reasons
+    stats["rejected_samples"] = samples
     return kept, stats

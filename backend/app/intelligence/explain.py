@@ -85,3 +85,61 @@ def explain(
         "contributions": rows,
         "missing": [{"signal": r["signal"], "label": r["label"], "reason": r["reason_missing"]} for r in missing],
     }
+
+
+def acceleration_assessment(volumes: list[int], momentum_direction: str | None = None, growth_flag: str | None = None) -> dict:
+    """Is the topic accelerating over several windows, or did it just spike in the latest one?
+
+    Uses only the stored per-window document volumes (and the stored momentum direction); no narrative is added.
+      sustained_acceleration  the last two window-over-window changes are both increases and the latest is larger
+      single_window_spike     only the latest window is elevated (>= 2x the mean of earlier windows) after flat/low
+                              earlier activity, and the increase is not preceded by a rise
+      rising                  latest window is above the previous one, evidence short of the two above
+      flat_or_falling         latest window is not above the previous one
+      insufficient_history    fewer than 3 windows or a very small total volume
+    """
+    v = [int(x) for x in (volumes or [])]
+    if len(v) < 3 or sum(v) < 5:
+        return {"label": "insufficient_history", "text": "Not enough weekly history to tell a sustained rise from a spike."}
+    cur, prev, prev2 = v[-1], v[-2], v[-3]
+    earlier = v[:-1]
+    earlier_mean = sum(earlier) / len(earlier)
+    if cur <= prev:
+        return {"label": "flat_or_falling", "text": f"Latest window ({cur}) is not above the previous one ({prev})."}
+    two_rises = prev > prev2 and cur > prev
+    if two_rises and momentum_direction in (None, "accelerating", "steady"):
+        return {"label": "sustained_acceleration", "text": f"Volume rose in consecutive windows ({prev2} → {prev} → {cur}), so this is not a one-window spike."}
+    if earlier_mean > 0 and cur >= 2 * earlier_mean and prev <= prev2 + 1:
+        return {"label": "single_window_spike", "text": f"Only the latest window is elevated ({cur} vs an earlier average of {earlier_mean:.1f}); treat as a possible temporary spike until it persists."}
+    if earlier_mean == 0:
+        return {"label": "single_window_spike", "text": f"No earlier activity and {cur} documents in the latest window: new, but not yet shown to persist."}
+    return {"label": "rising", "text": f"Latest window ({cur}) is above the previous one ({prev}); the rise is not yet sustained across consecutive windows."}
+
+
+def short_summary(
+    score: float | None,
+    lifecycle: str | None,
+    growth_pct: float | None,
+    momentum_direction: str | None,
+    volumes: list[int],
+    coverage: dict,
+    source_count: int,
+    top_signal: str | None = None,
+) -> str:
+    """One evidence-grounded line for list rows. Built only from stored values."""
+    bits: list[str] = []
+    if score is None:
+        cov = round(100 * (coverage or {}).get("signal_weight_coverage", 0))
+        bits.append(f"Score withheld ({cov}% signal coverage)")
+    elif top_signal:
+        bits.append(f"Score {score:.0f}, led by {top_signal.lower()}")
+    else:
+        bits.append(f"Score {score:.0f}")
+    if growth_pct is not None and len(volumes) >= 2:
+        bits.append(f"{volumes[-2]}→{volumes[-1]} docs ({growth_pct:+.0f}%)")
+    elif volumes:
+        bits.append(f"{volumes[-1]} docs this window")
+    if momentum_direction and momentum_direction != "unknown":
+        bits.append(momentum_direction)
+    bits.append(f"{source_count} source{'s' if source_count != 1 else ''}")
+    return "; ".join(bits)
