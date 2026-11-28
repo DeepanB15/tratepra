@@ -6,6 +6,8 @@ import { ActivityBadge, ErrorBox, LifecycleBadge, Loading, MomentumValue, ScoreV
 import { useAsync } from "../hooks/useAsync";
 import { saveItem } from "../services/research";
 import { getTrend, getTrendHistory } from "../services/trends";
+import { getTrendMonitoring } from "../services/monitoring";
+import { FollowButton } from "../components/monitor/parts";
 
 function Stat({ label, children, how }: { label: string; children: React.ReactNode; how: string }) {
   return (
@@ -29,6 +31,7 @@ export default function TrendDetail() {
   const { id = "" } = useParams();
   const detail = useAsync(() => getTrend(id), [id]);
   const history = useAsync(() => getTrendHistory(id), [id]);
+  const mon = useAsync(() => getTrendMonitoring(id), [id]);
   const [saved, setSaved] = useState(false);
   const navigate = useNavigate();
   const [investigating, setInvestigating] = useState(false);
@@ -66,6 +69,8 @@ export default function TrendDetail() {
           </div>
         </div>
         <div className="flex gap-2">
+        {mon.data && <FollowButton topicId={id} followed={mon.data.followed} />}
+        {mon.data?.followed && <Link className="rounded border border-stone-300 bg-white px-3 py-1 text-xs" to={`/monitor/trends/${id}`}>Monitoring</Link>}
         <button className="rounded border border-slate-800 bg-slate-800 px-3 py-1 text-xs text-white disabled:opacity-50" disabled={investigating} onClick={investigate}>
           {investigating ? "Opening…" : "Investigate this trend"}
         </button>

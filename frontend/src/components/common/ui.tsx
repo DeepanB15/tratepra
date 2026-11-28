@@ -154,3 +154,12 @@ export function Pager({ offset, limit, total, onChange }: { offset: number; limi
     </nav>
   );
 }
+
+const SEV_STYLE: Record<string, string> = {
+  critical: "border-rose-300 bg-rose-50 text-rose-800",
+  important: "border-amber-300 bg-amber-50 text-amber-800",
+  informational: "border-stone-200 bg-white text-slate-600",
+};
+export function SeverityBadge({ value }: { value: string }) {
+  return <span className={`rounded border px-1.5 py-0.5 text-[11px] font-medium capitalize ${SEV_STYLE[value] ?? SEV_STYLE.informational}`}>{value}</span>;
+}

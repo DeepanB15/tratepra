@@ -187,3 +187,17 @@ def test_llm_rewrite_cannot_change_numbers_and_failures_keep_the_original():
 
 def test_cosine():
     assert cosine([1, 0], [1, 0]) == 1.0 and cosine([1, 0], [0, 1]) == 0.0 and cosine(None, [1]) is None and cosine([0, 0], [1, 1]) is None
+
+
+def test_change_detection_evaluation_cases_pass_and_report_is_computed():
+    import json
+    import os
+
+    from app.evaluation.change_detection import evaluate
+
+    path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "evaluation", "change_cases.json")
+    rep = evaluate(json.load(open(path))["cases"])
+    assert rep["label"] == "synthetic controlled cases" and rep["cases"] >= 15
+    assert rep["passed"] == rep["cases"] and rep["false_positives"] == 0 and rep["false_negatives"] == 0
+    bad = evaluate([{"id": "x", "category": "c", "snapshots": [{"vol": 20, "growth": 10}, {"vol": 31, "growth": 45}], "expected": []}])
+    assert bad["false_positives"] == 1 and bad["event_precision"] == 0.0  # the scorer really detects disagreement

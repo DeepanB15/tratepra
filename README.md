@@ -63,6 +63,7 @@ The same operations exist as protected endpoints (`X-Internal-Token` header = `I
 
 - `GET /health` - liveness only. `GET /ready` - database, pgvector (incl. embedding dimension) and Ollama; `503` if the database or pgvector fail, `degraded` if only Ollama is down.
 - `python -m scripts.verify_setup [--probe]` prints what each real service answered. `--probe` makes one live request per configured connector.
+- **Monitoring (Phase 3):** follow trends in the UI (Monitor tab). Change detection, events and in-app notifications run in a monitoring cycle (collection → recompute → detection → evidence → notifications). The scheduler is opt-in (`MONITORING_SCHEDULER_ENABLED=true`); trigger a job manually with `POST /api/internal/monitoring/run` `{"job": "detection"}` (job: collection, recompute, detection, evidence, notifications, cycle). See `docs/phase-3/`.
 - Set `APP_ENV=production` to enforce a strong `INTERNAL_API_TOKEN` and non-wildcard `CORS_ORIGINS` at startup.
 
 ## Tests
