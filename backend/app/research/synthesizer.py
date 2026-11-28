@@ -72,7 +72,7 @@ def synthesize(question: str, context_text: str, n_items: int) -> SynthesisResul
         ],
     }
     try:
-        resp = httpx.post(f"{s.ollama_base_url}/api/chat", json=payload, timeout=120.0)
+        resp = httpx.post(f"{s.ollama_base_url}/api/chat", json=payload, timeout=s.ollama_timeout_seconds)
         resp.raise_for_status()
         content = resp.json()["message"]["content"]
         data = json.loads(content)

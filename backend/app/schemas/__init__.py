@@ -211,3 +211,83 @@ class DiscoveryOverview(BaseModel):
     topic_model_diagnostics: dict[str, Any] | None
     data_freshness: DataFreshness
     generated_at: datetime
+
+
+# ---------------------------------------------------------------- Phase 2: dossiers
+class DossierCreate(BaseModel):
+    topic_id: str | None = Field(default=None, max_length=64)
+    query: str | None = Field(default=None, min_length=3, max_length=500)
+    time_range: str = Field(default="30d", pattern=r"^\d+[dhw]$")
+    sources: list[str] = Field(default_factory=list, max_length=6)
+    refresh_articles: bool = False
+
+
+class DossierProcessing(BaseModel):
+    status: str
+    error: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    interrupted: bool = False
+    has_content: bool = False
+
+
+class DossierOut(BaseModel):
+    id: str
+    topic_id: str | None
+    title: str
+    query: str
+    time_range: str
+    sources: list[str]
+    processing: DossierProcessing
+    generated_at: datetime | None
+    generation: int
+    model: str
+    sections: dict[str, Any]
+    evidence_quality: dict[str, Any]
+    diagnostics: dict[str, Any]
+    versions: dict[str, Any]
+    evidence_count: int
+    claim_count: int
+    created_at: datetime
+    limitations: list[str]
+    created: bool | None = None
+
+
+class DossierListItem(BaseModel):
+    id: str
+    topic_id: str | None
+    title: str
+    status: str
+    generated_at: datetime | None
+    time_range: str
+
+
+class DossierEvidenceOut(BaseModel):
+    id: str
+    document_id: str
+    rank: int
+    role: str
+    role_reason: str
+    relevance: float
+    title: str
+    url: str | None
+    publisher: str
+    source: str
+    published_at: datetime | None
+    excerpt: str
+    excerpt_basis: str
+    article_status: str
+
+
+class DossierClaimOut(BaseModel):
+    id: str
+    claim_no: int
+    section: str
+    text: str
+    claim_type: str
+    status: str
+    explanation: str
+    overlap: float | None
+    source_coverage: int
+    supporting_evidence_ids: list[str]
+    contradictory_evidence_ids: list[str]

@@ -12,3 +12,4 @@ from app.models.entities import (  # noqa: F401
     TrendObservation,
     TrendRun,
 )
+from app.models.dossier import ClaimEvidence, DossierClaim, DossierEvidence, ResearchDossier  # noqa: F401

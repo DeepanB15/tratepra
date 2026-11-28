@@ -74,6 +74,13 @@ class Document(Base):
     collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     engagement: Mapped[dict] = mapped_column(JSON, default=dict)
     metadata_: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
+    # Article evidence (Phase 2). article_text is stored once here; dossiers reference documents by id.
+    article_status: Mapped[str] = mapped_column(String(20), default="rss_only", server_default="rss_only")
+    article_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    article_method: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    article_extracted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    article_text_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    article_failure_reason: Mapped[str | None] = mapped_column(String(80), nullable=True)
 
     source: Mapped[Source] = relationship(back_populates="documents")
     embedding: Mapped["DocumentEmbedding | None"] = relationship(

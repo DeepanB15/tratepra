@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.connectors import CONNECTOR_CLASSES, get_connector
 from app.core.exceptions import ConnectorError
 from app.ingestion.article_enrichment import enrich_records
+from app.ingestion.article_state import compose_normalized_text
 from app.ingestion.deduplicator import dedupe_batch, filter_existing
 from app.ingestion.filters import filter_by_date
 from app.ingestion.normalizer import normalize_record, validation_error
@@ -160,10 +161,11 @@ def persist_outcome(
             # Keep content_hash based on the original RSS title/description.
             for doc in new_docs:
                 article_text = doc.pop("_article_text", None)
+                doc["_article_columns"] = doc.pop("_article", None) or {}
 
                 if article_text:
-                    doc["normalized_text"] = (
-                        f"{doc['normalized_text']}\n\n{article_text}"
+                    doc["normalized_text"] = compose_normalized_text(
+                        doc["normalized_text"], article_text
                     )
 
             for doc in new_docs:
@@ -183,6 +185,7 @@ def persist_outcome(
                         ),
                         engagement=doc["engagement"],
                         metadata_=doc["metadata"],
+                        **doc["_article_columns"],
                     )
                 )
 

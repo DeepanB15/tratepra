@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen3.5:4b"
+    ollama_timeout_seconds: float = 120.0
 
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_dim: int = 384
@@ -82,6 +83,15 @@ class Settings(BaseSettings):
     lifecycle_growing_min_growth: float = 10.0
     lifecycle_declining_max_growth: float = -10.0
     lifecycle_min_documents: int = 5
+
+    # Phase 2: research dossiers
+    dossier_inline_execution: bool = False  # tests/dev: run generation in the request instead of a worker thread
+    dossier_workers: int = 2
+    dossier_running_timeout_minutes: int = 30  # a 'running' dossier older than this is treated as crashed
+    dossier_max_evidence: int = 12
+    dossier_retrieval_limit: int = 80
+    dossier_article_refresh_max: int = 5  # bounded article re-extraction per generation
+    dossier_support_overlap: float = 0.6  # claim token coverage for 'supported'; MIN_SUPPORT_OVERLAP..this = partial
 
     @property
     def is_production(self) -> bool:

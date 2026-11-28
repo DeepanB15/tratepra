@@ -84,8 +84,13 @@ def db(engine, monkeypatch):
         if hasattr(m, "embed_query"):
             monkeypatch.setattr(m, "embed_query", lambda t: fake_embed([t])[0])
     with engine.begin() as c:
-        c.execute(text("TRUNCATE research_evidence, research_results, research_queries, documents, sources, collection_logs, topics, trend_runs CASCADE"))
+        c.execute(text("TRUNCATE research_dossiers, research_evidence, research_results, research_queries, documents, sources, collection_logs, topics, trend_runs CASCADE"))
     s = sessionmaker(bind=engine)()
+    # embed_pending opens its own short sessions via SessionLocal; point them at the test database.
+    import app.ingestion.embedding_store as _es
+
+    if hasattr(_es, "SessionLocal"):
+        monkeypatch.setattr(_es, "SessionLocal", sessionmaker(bind=engine))
     from app.models import Source
 
     for key in ("google_news", "youtube", "reddit", "google_trends"):
