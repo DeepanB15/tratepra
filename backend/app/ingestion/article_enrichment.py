@@ -3,7 +3,8 @@
 
 import logging
 
-from app.ingestion.article_fetcher import fetch_article
+from app.ingestion.article_fetcher import fetch_article_outcome
+from app.ingestion.article_state import build_state
 
 log = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ def enrich_records(records: list[dict]) -> list[dict]:
                 "status": "skipped_limit",
                 "method": "trafilatura",
             }
+            updated["_article"] = build_state(None, "not_attempted_limit")
             enriched.append(updated)
             continue
 
@@ -41,13 +43,15 @@ def enrich_records(records: list[dict]) -> list[dict]:
                 "status": "unavailable",
                 "method": "trafilatura",
             }
+            updated["_article"] = build_state(None, "no_url")
             enriched.append(updated)
             continue
 
         attempted += 1
 
         try:
-            result = fetch_article(url)
+            outcome = fetch_article_outcome(url)
+            result = outcome.result
 
             if result and result.status == "extracted" and result.text:
                 rss_text = updated.get("description") or ""
@@ -60,12 +64,14 @@ def enrich_records(records: list[dict]) -> list[dict]:
                 }
 
                 updated["_article_text"] = result.text
+                updated["_article"] = build_state(result.text, None, result.method)
 
             else:
                 metadata["article_extraction"] = {
                     "status": "unavailable",
                     "method": "trafilatura",
                 }
+                updated["_article"] = build_state(None, outcome.reason)
 
         except Exception:
             log.exception("Article enrichment failed")
@@ -73,6 +79,7 @@ def enrich_records(records: list[dict]) -> list[dict]:
                 "status": "error",
                 "method": "trafilatura",
             }
+            updated["_article"] = build_state(None, "error")
 
         enriched.append(updated)
 

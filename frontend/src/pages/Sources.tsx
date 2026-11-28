@@ -1,19 +1,49 @@
 import { Empty, ErrorBox, Loading, SourceStateBadge, fmtAge, fmtDate } from "../components/common/ui";
 import { useAsync } from "../hooks/useAsync";
 import { getSourceLogs, getSources } from "../services/research";
+import { getDiscoveryOverview } from "../services/trends";
+import { Link } from "react-router-dom";
 
 export default function Sources() {
   const sources = useAsync(getSources);
   const logs = useAsync(() => getSourceLogs(50));
+  const ov = useAsync(getDiscoveryOverview);
+  const list = sources.data ?? [];
+  const count = (st: string) => list.filter((s) => s.state === st).length;
+  const available = list.filter((s) => s.state === "operational" || s.state === "configured").length;
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Source monitoring</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Sources &amp; data health</h1>
         <p className="mt-1 text-sm text-slate-500">
           State is derived from real collection runs. "configured" means credentials exist but no successful run has confirmed them.
         </p>
       </div>
+
+      <section aria-label="Data health" className="grid grid-cols-2 divide-x divide-stone-200 rounded border border-stone-200 text-sm sm:grid-cols-5">
+        {[
+          ["Configured sources", list.length],
+          ["Available", available],
+          ["Unavailable", count("unavailable")],
+          ["Failing", count("failing")],
+          ["Documents stored", list.reduce((n, s) => n + s.document_count, 0)],
+        ].map(([k, v]) => (
+          <div key={k as string} className="px-3 py-2">
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">{k}</div>
+            <div className="text-xl font-semibold tabular-nums">{sources.data ? v : "—"}</div>
+          </div>
+        ))}
+        <p className="col-span-full border-t border-stone-200 px-3 py-2 text-xs text-slate-600">
+          Trend analysis:{" "}
+          {ov.data
+            ? ov.data.data_freshness.latest_successful_analysis_at
+              ? `last completed ${fmtAge(ov.data.data_freshness.latest_successful_analysis_at)}${ov.data.data_freshness.overdue ? " (overdue)" : ""}, ${ov.data.documents_analyzed ?? 0} documents analysed.`
+              : "no completed analysis yet."
+            : ov.error ?? "…"}{" "}
+          <Link to="/runs" className="underline">Analysis runs</Link>
+        </p>
+      </section>
 
       <section>
         {sources.loading && <Loading />}

@@ -64,7 +64,10 @@ def retrieve(
     limit: int = 60,
     keywords: list[str] | None = None,
     phrases: list[str] | None = None,
+    include_document_ids: list | None = None,
 ) -> list[Candidate]:
+    """`include_document_ids` adds known-relevant documents (e.g. a trend's member documents) as candidates
+    labelled match="topic"; they still pass the source and time-window filters and need an embedding."""
     keys = [s for s in sources if s not in NON_TEXT_SOURCES]
     if not keys:
         return []
@@ -98,6 +101,15 @@ def retrieve(
                 existing.match, existing.keyword_rank = "both", float(kw_rank)
             else:
                 merged[doc.id] = Candidate(doc, key, _sim(dist), float(quality), "keyword", float(kw_rank))
+    if include_document_ids:
+        stmt = base().where(Document.id.in_(list(include_document_ids))).order_by(distance).limit(limit)
+        for doc, key, quality, dist, *_ in db.execute(stmt).all():
+            existing = merged.get(doc.id)
+            if existing:
+                if existing.match != "both":
+                    existing.match = "both" if existing.match == "keyword" else existing.match
+            else:
+                merged[doc.id] = Candidate(doc, key, _sim(dist), float(quality), "topic")
     return list(merged.values())
 
 

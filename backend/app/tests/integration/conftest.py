@@ -18,6 +18,26 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 URL = os.environ.get("TEST_DATABASE_URL")
+
+
+def _assert_safe_test_database(url: str | None) -> None:
+    """These tests DROP SCHEMA public. Refuse anything that does not look like a disposable test database."""
+    if not url:
+        return
+    from sqlalchemy.engine import make_url
+
+    u = make_url(url)
+    host, name = (u.host or "").lower(), (u.database or "").lower()
+    remote_managed = any(x in host for x in ("supabase", "amazonaws", "azure", "neon.tech", "render.com"))
+    looks_test = name.endswith("_it") or "test" in name
+    if remote_managed or not looks_test:
+        raise RuntimeError(
+            f"Refusing to run destructive integration tests against '{name}' on '{host}'. "
+            "TEST_DATABASE_URL must point to a local/disposable database whose name contains 'test' or ends with '_it'."
+        )
+
+
+_assert_safe_test_database(URL)
 BACKEND = Path(__file__).resolve().parents[3]
 
 
@@ -64,8 +84,13 @@ def db(engine, monkeypatch):
         if hasattr(m, "embed_query"):
             monkeypatch.setattr(m, "embed_query", lambda t: fake_embed([t])[0])
     with engine.begin() as c:
-        c.execute(text("TRUNCATE research_evidence, research_results, research_queries, documents, sources, collection_logs, topics CASCADE"))
+        c.execute(text("TRUNCATE research_dossiers, research_evidence, research_results, research_queries, documents, sources, collection_logs, topics, trend_runs CASCADE"))
     s = sessionmaker(bind=engine)()
+    # embed_pending opens its own short sessions via SessionLocal; point them at the test database.
+    import app.ingestion.embedding_store as _es
+
+    if hasattr(_es, "SessionLocal"):
+        monkeypatch.setattr(_es, "SessionLocal", sessionmaker(bind=engine))
     from app.models import Source
 
     for key in ("google_news", "youtube", "reddit", "google_trends"):

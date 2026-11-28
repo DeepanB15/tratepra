@@ -40,6 +40,8 @@ class ProcessedQuery:
     phrases: list[str] = field(default_factory=list)
     intent: str = "general"
     time_range: str | None = None
+    entities: list[str] = field(default_factory=list)  # lower-cased named things: phrases, ACRONYMS, product-like tokens
+    topic_ids: list[str] = field(default_factory=list)  # supplied by the caller (e.g. Investigate this trend)
 
 
 def extract_phrases(text: str) -> list[str]:
@@ -52,6 +54,24 @@ def extract_phrases(text: str) -> list[str]:
         if len(words) >= 2:
             found.append(" ".join(words).lower())
     return list(dict.fromkeys(found))
+
+
+_ACRONYM = re.compile(r"\b[A-Z][A-Z0-9]{1,9}\b")
+_PRODUCTISH = re.compile(r"\b[A-Za-z]+-[0-9][A-Za-z0-9\.\-]*\b|\b[A-Za-z]+[0-9][A-Za-z0-9\.\-]*\b|\b[a-z]+[A-Z][A-Za-z0-9]+\b")
+
+
+def extract_entities(text: str, phrases: list[str]) -> list[str]:
+    """Deterministic entity candidates (no model): multi-word capitalised phrases, acronyms (LLM, GPU),
+    product-like tokens (GPT-5, v2.1, iPhone) and mid-sentence capitalised words. Typing is not attempted."""
+    found = list(phrases)
+    found += [m.lower() for m in _ACRONYM.findall(text)]
+    found += [m.lower() for m in _PRODUCTISH.findall(text)]
+    words = text.split()
+    for i, w in enumerate(words):
+        w = w.strip(".,;:!?()\"'")
+        if i > 0 and w[:1].isupper() and len(w) > 2 and w.lower() not in STOPWORDS and not w.isupper():
+            found.append(w.lower())
+    return [e for e in dict.fromkeys(found) if e and e not in STOPWORDS]
 
 
 def detect_time_range(text: str) -> str | None:
@@ -67,7 +87,7 @@ def detect_time_range(text: str) -> str | None:
     return None
 
 
-def process_query(query: str, default_time_range: str = "30d") -> ProcessedQuery:
+def process_query(query: str, default_time_range: str = "30d", topic_ids: list[str] | None = None) -> ProcessedQuery:
     cleaned = re.sub(r"\s+", " ", query or "").strip()
     if len(cleaned) < 3:
         raise InvalidQuery("Query is empty or too short")
@@ -88,4 +108,6 @@ def process_query(query: str, default_time_range: str = "30d") -> ProcessedQuery
         phrases=phrases,
         intent=intent,
         time_range=detect_time_range(cleaned) or default_time_range,
+        entities=extract_entities(cleaned, phrases),
+        topic_ids=list(topic_ids or []),
     )

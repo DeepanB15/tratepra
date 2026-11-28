@@ -7,6 +7,11 @@ export class ApiError extends Error {
 }
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  return (await apiPage<T>(path, init)).data;
+}
+
+/** Like api() but also returns the X-Total-Count pagination header (null when absent). */
+export async function apiPage<T>(path: string, init?: RequestInit): Promise<{ data: T; total: number | null }> {
   let res: Response;
   try {
     res = await fetch(`${BASE}${path}`, {
@@ -26,5 +31,6 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new ApiError(res.status, detail);
   }
-  return (await res.json()) as T;
+  const total = res.headers?.get?.("X-Total-Count");
+  return { data: (await res.json()) as T, total: total != null ? Number(total) : null };
 }

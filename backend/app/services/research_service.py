@@ -87,14 +87,15 @@ def run_research(db: Session, query: str, sources: list[str], time_range: str, r
     candidates = retrieve(db, pq.cleaned, valid_sources, effective_range, keywords=pq.keywords, phrases=pq.phrases)
     ranked = rank(candidates, pq.keywords, window_days, phrases=pq.phrases)
     selected = select_evidence(ranked)
-    ctx = build_context(selected)
+    ctx = build_context(selected, pq.keywords + pq.phrases)
     t_retrieve = time.time()
 
     synth = synthesize(pq.cleaned, ctx.text, len(selected))
     t_synth = time.time()
+    # Verify against the SAME excerpt text the model was shown (article excerpt when real article text exists).
     refs = [
-        EvidenceRef(text=f"{i.candidate.document.title}. {i.candidate.document.description or ''}", url=i.candidate.document.url)
-        for i in selected
+        EvidenceRef(text=f"{i.candidate.document.title}. {ex.text}", url=i.candidate.document.url)
+        for i, ex in zip(selected, ctx.excerpts)
     ]
     verified = verify_answer(synth.answer, synth.key_findings, refs)
 
@@ -128,6 +129,11 @@ def run_research(db: Session, query: str, sources: list[str], time_range: str, r
                 "keywords": pq.keywords,
                 "phrases": pq.phrases,
                 "intent": pq.intent,
+                "entities": pq.entities,
+                "evidence_basis": {
+                    "article_excerpts": sum(1 for e in ctx.excerpts if e.basis == "article"),
+                    "rss_summaries": sum(1 for e in ctx.excerpts if e.basis == "rss"),
+                },
                 "time_range": effective_range,
                 "candidates": len(candidates),
                 "removed_citations": sorted(verified.removed_refs),

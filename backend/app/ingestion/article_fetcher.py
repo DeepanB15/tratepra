@@ -5,6 +5,7 @@ RSS records remain valid when fetching or extraction fails.
 Redirects are followed manually and each destination is validated.
 """
 import ipaddress
+from dataclasses import dataclass
 import logging
 import socket
 from urllib.parse import urljoin, urlparse
@@ -61,8 +62,21 @@ def _public_http_url(url: str) -> bool:
         return False
 
 
+@dataclass
+class FetchOutcome:
+    """Result of a fetch attempt. `reason` explains a missing result (never contains URLs or secrets)."""
+
+    result: object | None = None
+    reason: str | None = None
+
+
 def fetch_article(url: str):
-    """Fetch and extract an article using bounded, validated redirects."""
+    """Fetch and extract an article using bounded, validated redirects (None on any failure)."""
+    return fetch_article_outcome(url).result
+
+
+def fetch_article_outcome(url: str) -> FetchOutcome:
+    """Same safety behaviour as fetch_article, but reports why nothing was extracted."""
     current_url = url
 
     try:
@@ -75,35 +89,35 @@ def fetch_article(url: str):
 
             for redirect_count in range(MAX_REDIRECTS + 1):
                 if not _public_http_url(current_url):
-                    return None
+                    return FetchOutcome(None, "blocked_unsafe_url")
 
                 with client.stream("GET", current_url) as response:
 
                     if response.status_code in REDIRECT_CODES:
                         if redirect_count >= MAX_REDIRECTS:
-                            return None
+                            return FetchOutcome(None, "too_many_redirects")
 
                         location = response.headers.get("location")
                         if not location:
-                            return None
+                            return FetchOutcome(None, "redirect_without_location")
 
                         next_url = urljoin(current_url, location)
 
                         if not _public_http_url(next_url):
-                            return None
+                            return FetchOutcome(None, "blocked_unsafe_redirect")
 
                         current_url = next_url
                         continue
 
                     if response.status_code != 200:
-                        return None
+                        return FetchOutcome(None, f"http_{response.status_code}")
 
                     content_type = response.headers.get(
                         "content-type", ""
                     ).lower()
 
                     if "text/html" not in content_type:
-                        return None
+                        return FetchOutcome(None, "not_html")
 
                     chunks = []
                     total = 0
@@ -112,22 +126,22 @@ def fetch_article(url: str):
                         total += len(chunk)
 
                         if total > MAX_RESPONSE_BYTES:
-                            return None
+                            return FetchOutcome(None, "response_too_large")
 
                         chunks.append(chunk)
 
                     result = extract_article(b"".join(chunks))
 
                     if result.status == "extracted":
-                        return result
+                        return FetchOutcome(result, None)
 
-                    return None
+                    return FetchOutcome(None, result.status)
 
+    except httpx.TimeoutException:
+        log.info("Article fetch timed out", exc_info=True)
+        return FetchOutcome(None, "timeout")
     except (httpx.HTTPError, OSError, ValueError):
-        log.info(
-            "Article fetch failed for %s",
-            current_url,
-            exc_info=True,
-        )
+        log.info("Article fetch failed for %s", current_url, exc_info=True)
+        return FetchOutcome(None, "network_error")
 
-    return None
+    return FetchOutcome(None, "network_error")

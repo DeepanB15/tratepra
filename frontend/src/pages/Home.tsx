@@ -1,144 +1,95 @@
-import { Link, useNavigate } from "react-router-dom";
-import Icon from "../components/common/Icon";
-import { Empty, ErrorBox, Loading, SourceStateBadge, fmtAge, fmtDate, fmtNum } from "../components/common/ui";
-import SearchBox from "../components/search/SearchBox";
-import TrendCard from "../components/trends/TrendCard";
+import { Link } from "react-router-dom";
+import { Empty, ErrorBox, Loading, fmtAge } from "../components/common/ui";
+import TrendRow from "../components/trends/TrendRow";
 import { useAsync } from "../hooks/useAsync";
-import { getOverview } from "../services/research";
+import { getDiscoveryOverview, searchTrends, type TrendQuery } from "../services/trends";
 
-function Stat({ icon, label, value }: { icon: string; label: string; value: string | number }) {
-  return (
-    <div className="card">
-      <Icon name={icon} size={20} className="text-slate-700" />
-      <div className="mt-3 text-3xl font-semibold tracking-tight">{value}</div>
-      <div className="text-sm text-slate-500">{label}</div>
+const SECTIONS: { key: string; title: string; hint: string; query: TrendQuery; link: string }[] = [
+  { key: "emerging", title: "Emerging signals", hint: "Lifecycle: emerging — new activity with little history", query: { lifecycle: "emerging", limit: 5 }, link: "?lifecycle=emerging" },
+  { key: "rising", title: "Rising trends", hint: "Lifecycle: growing — sustained growth", query: { lifecycle: "growing", limit: 5 }, link: "?lifecycle=growing" },
+  { key: "accelerating", title: "Accelerating trends", hint: "Momentum accelerating across recent windows", query: { momentum: "accelerating", sort: "momentum", limit: 5 }, link: "?momentum=accelerating&sort=momentum" },
+  { key: "declining", title: "Declining trends", hint: "Lifecycle: declining", query: { lifecycle: "declining", limit: 5 }, link: "?lifecycle=declining" },
+  { key: "new", title: "Newly discovered topics", hint: "First seen in the last 14 days", query: { is_new: true, sort: "recent", limit: 5 }, link: "?is_new=true&sort=recent" },
+];
+
+function Metric({ label, value, hint, to }: { label: string; value: string | number; hint?: string; to?: string }) {
+  const body = (
+    <div className="px-3 py-2" title={hint}>
+      <div className="text-[11px] uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="text-xl font-semibold tabular-nums">{value}</div>
     </div>
+  );
+  return to ? <Link to={to} className="block hover:bg-stone-50">{body}</Link> : body;
+}
+
+function Section({ s }: { s: (typeof SECTIONS)[number] }) {
+  const { data, error, loading, reload } = useAsync(() => searchTrends(s.query), []);
+  return (
+    <section aria-labelledby={`h-${s.key}`} className="rounded border border-stone-200">
+      <div className="flex items-baseline justify-between border-b border-stone-200 px-3 py-2">
+        <div>
+          <h2 id={`h-${s.key}`} className="text-sm font-semibold">{s.title}</h2>
+          <p className="text-[11px] text-slate-500">{s.hint}</p>
+        </div>
+        <Link to={`/trends${s.link}`} className="text-xs text-slate-600 hover:underline">
+          {data?.total != null ? `View all (${data.total})` : "View all"}
+        </Link>
+      </div>
+      <div className="px-3">
+        {loading && <Loading />}
+        {error && <div className="py-3"><ErrorBox message={error} onRetry={reload} /></div>}
+        {data && data.data.length === 0 && <p className="py-4 text-xs text-slate-500">No active trends in this category.</p>}
+        {data && data.data.length > 0 && <ul className="divide-y divide-stone-100">{data.data.map((t) => <TrendRow key={t.topic_id} t={t} />)}</ul>}
+      </div>
+    </section>
   );
 }
 
 export default function Home() {
-  const nav = useNavigate();
-  const { data, error, loading, reload } = useAsync(getOverview);
-
+  const ov = useAsync(getDiscoveryOverview);
+  const o = ov.data;
   return (
-    <div className="mx-auto max-w-5xl space-y-12">
-      <section className="pt-6 text-center md:pt-12">
-        <h1 className="mx-auto max-w-2xl text-4xl font-semibold leading-tight tracking-tight md:text-5xl">
-          Research, discover and track emerging trends.
-        </h1>
-        <p className="mt-4 text-lg text-slate-500">Search across news, video and community sources, get cited AI insights, and see what's trending.</p>
-        <div className="mt-10">
-          <SearchBox onSubmit={(q, sources, range) => nav("/research", { state: { query: q, sources, range } })} />
-        </div>
-      </section>
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight">Discover</h1>
+        <p className="text-xs text-slate-500">Emerging topics ranked by measurable signals. Every score links to the evidence behind it.</p>
+      </div>
 
-      {loading && <Loading />}
-      {error && <ErrorBox message={error} onRetry={reload} />}
+      {ov.loading && <Loading />}
+      {ov.error && <ErrorBox message={ov.error} onRetry={ov.reload} />}
 
-      {data && (
+      {o && (
         <>
-          <section>
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="flex items-center gap-2 text-lg font-semibold">
-                <Icon name="trend" /> Trending research
-              </h2>
-              <Link to="/trends" className="flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900">
-                View all <Icon name="arrow" size={14} />
-              </Link>
-            </div>
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <Stat icon="doc" label="Research Queries" value={data.research_query_count} />
-              <Stat icon="flame" label="Emerging Trends" value={data.emerging_trend_count} />
-              <Stat icon="layers" label="Documents Collected" value={data.document_count} />
-              <Stat icon="spark" label="Avg. Trend Score" value={data.average_trend_score === null ? "n/a" : fmtNum(data.average_trend_score)} />
-            </div>
-          </section>
+          <div className="grid grid-cols-2 divide-x divide-y divide-stone-200 rounded border border-stone-200 sm:grid-cols-5 sm:divide-y-0">
+            <Metric label="Active trends" value={o.total_active_trends} hint="Observed in the latest completed analysis run" to="/trends" />
+            <Metric label="Emerging" value={o.emerging_trends} to="/trends?lifecycle=emerging" />
+            <Metric label="Rising" value={o.rising_trends} hint="Lifecycle 'growing'" to="/trends?lifecycle=growing" />
+            <Metric label="Score withheld" value={o.withheld_score_trends} hint="Active trends without enough signal coverage for a numeric score" to="/trends?score_withheld=true" />
+            <Metric label="Latest analysis" value={fmtAge(o.data_freshness.latest_successful_analysis_at)} hint={o.documents_analyzed != null ? `${o.documents_analyzed} documents analysed` : undefined} to="/runs" />
+          </div>
 
-          <section className="grid gap-4 md:grid-cols-2">
-            <div className="card">
-              <h3 className="mb-3 font-semibold">Lifecycle distribution</h3>
-              {data.active_topic_count === 0 ? (
-                <p className="text-sm text-slate-500">No topics yet.</p>
-              ) : (
-                <ul className="space-y-1.5 text-sm">
-                  {Object.entries(data.lifecycle_distribution).map(([k, v]) => (
-                    <li key={k} className="flex justify-between">
-                      <span className="capitalize">{k}</span>
-                      <span className="font-medium">{v}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <p className="mt-2 text-xs text-slate-500">{data.active_topic_count} topics, counted from the latest observation of each.</p>
-            </div>
-            <div className="card">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="font-semibold">Source freshness</h3>
-                <Link to="/sources" className="text-sm text-slate-600 hover:text-slate-900">
-                  Monitor
-                </Link>
-              </div>
-              <ul className="space-y-2 text-sm">
-                {data.sources.map((s) => (
-                  <li key={s.key} className="flex items-center justify-between gap-2">
-                    <span>{s.name}</span>
-                    <span className="flex items-center gap-2 text-slate-500">
-                      {s.document_count} docs · newest {fmtAge(s.latest_document_at)}
-                      <SourceStateBadge state={s.state} />
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </section>
-
-          {data.recent_collections.length > 0 && (
-            <section>
-              <h2 className="mb-3 text-lg font-semibold">Recent collection activity</h2>
-              <ul className="card divide-y divide-stone-100 text-sm">
-                {data.recent_collections.map((c, i) => (
-                  <li key={`${c.run_id}-${c.source}-${i}`} className="flex flex-wrap justify-between gap-2 py-2">
-                    <span>
-                      <span className="font-medium">{c.source}</span> · {c.status} · {c.fetched} fetched, {c.accepted} new
-                    </span>
-                    <span className="text-slate-500">{fmtAge(c.created_at)}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
+          {o.latest_successful_run === null && (
+            <Empty title="No completed analysis yet" hint="Collect data, then run: python -m scripts.run_trend_analysis (add --dry-run to preview without saving)." />
           )}
-
-          <section>
-            {data.trending.length === 0 ? (
-              <Empty title="No trends computed yet" hint="Collect data and run: python -m scripts.run_trend_analysis" />
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {data.trending.map((t) => (
-                  <TrendCard key={t.topic_id} t={t} />
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section>
-            <h2 className="mb-3 text-lg font-semibold">Recent activity</h2>
-            {data.recent_activity.length === 0 ? (
-              <Empty title="No research yet" hint="Run your first query above." />
-            ) : (
-              <ul className="card divide-y divide-stone-100">
-                {data.recent_activity.map((a) => (
-                  <li key={a.research_id} className="flex flex-wrap justify-between gap-2 py-2.5 text-sm">
-                    <Link className="font-medium text-brand-700 hover:underline" to={`/research/${a.research_id}`}>
-                      {a.query}
-                    </Link>
-                    <span className="text-slate-500">{fmtDate(a.created_at)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          {o.latest_run_status === "failed" && (
+            <div className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800" role="status">
+              The most recent analysis run failed{o.latest_run?.error_message ? `: ${o.latest_run.error_message}` : ""}. Results below are from the last completed run. <Link className="underline" to="/runs">Inspect runs</Link>
+            </div>
+          )}
+          {o.data_freshness.overdue && o.latest_successful_run !== null && (
+            <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="status">
+              The latest completed analysis is older than {o.data_freshness.overdue_after_days} days; trends may not reflect recent activity.
+            </div>
+          )}
+          {o.stale_trends > 0 && (
+            <p className="text-xs text-slate-500">
+              {o.stale_trends} stale and {o.inactive_trends} inactive topic(s) are hidden from these lists. <Link className="underline" to="/trends?activity_state=stale">Show stale</Link>
+            </p>
+          )}
         </>
       )}
+
+      {(!o || o.latest_successful_run !== null) && <div className="space-y-4">{SECTIONS.map((s) => <Section key={s.key} s={s} />)}</div>}
     </div>
   );
 }

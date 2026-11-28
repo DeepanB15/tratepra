@@ -1,0 +1,1 @@
+{"instructions": "Run `python -m scripts.evaluate_research_quality --init`, label cases by hand from stored documents, then score. Unlabelled cases are never scored.", "cases": []}

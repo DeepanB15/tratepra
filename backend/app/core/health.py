@@ -51,6 +51,29 @@ def check_pgvector() -> dict[str, Any]:
     return _timed(run)
 
 
+REQUIRED_SCHEMA_OBJECTS = ("trend_runs",)
+
+
+def check_schema() -> dict[str, Any]:
+    """Phase 1 schema present (run `alembic upgrade head`). Reported as a failure of this component only."""
+
+    def run():
+        with engine.connect() as conn:
+            missing = [t for t in REQUIRED_SCHEMA_OBJECTS if conn.execute(text("SELECT to_regclass(:n)"), {"n": f"public.{t}"}).scalar() is None]
+            col = conn.execute(text("SELECT 1 FROM information_schema.columns WHERE table_name='topics' AND column_name='last_observed_at'")).scalar()
+            if col is None:
+                missing.append("topics.last_observed_at")
+            try:
+                rev = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
+            except Exception:
+                rev = None
+        if missing:
+            raise RuntimeError(f"schema is behind the code (missing: {', '.join(missing)}); run `alembic upgrade head`")
+        return {"alembic_revision": rev}
+
+    return _timed(run)
+
+
 def check_ollama() -> dict[str, Any]:
     s = get_settings()
 
@@ -82,7 +105,8 @@ def readiness() -> dict[str, Any]:
     db = check_database()
     vec = check_pgvector() if db["ok"] else {"ok": False, "error": "skipped: database unavailable"}
     ollama = check_ollama()
-    components = {"database": db, "pgvector": vec, "ollama": ollama}
-    core_ok = db["ok"] and vec["ok"]
+    schema = check_schema() if db["ok"] else {"ok": False, "error": "skipped: database unavailable"}
+    components = {"database": db, "pgvector": vec, "schema": schema, "ollama": ollama}
+    core_ok = db["ok"] and vec["ok"] and schema["ok"]
     status = "not_ready" if not core_ok else ("ready" if ollama["ok"] else "degraded")
     return {"status": status, "components": components, "connectors": check_connectors()}

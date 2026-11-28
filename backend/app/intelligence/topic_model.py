@@ -18,6 +18,20 @@ class TopicModelResult:
     topic_terms: dict[int, list[str]]
     n_noise: int
     model: object
+    notes: list[str] | None = None  # parameter fallbacks applied during this fit (surfaced in run diagnostics)
+
+
+def model_parameters(n: int, min_topic_size: int | None = None) -> dict:
+    """Every parameter that shapes the result. Part of the run key; derived from the document count."""
+    min_size = min_topic_size or max(5, n // 40)
+    return {
+        "pipeline": "precomputed-embeddings -> UMAP -> HDBSCAN -> BERTopic c-TF-IDF",
+        "random_state": RANDOM_STATE,
+        "min_docs": MIN_DOCS,
+        "umap": {"n_neighbors": min(15, n - 1), "n_components": min(5, n - 2), "min_dist": 0.0, "metric": "cosine"},
+        "hdbscan": {"min_cluster_size": min_size, "min_samples": max(2, min_size // 2), "metric": "euclidean", "cluster_selection_method": "eom"},
+        "vectorizer": {"stop_words": "english", "ngram_range": [1, 2], "min_df": 2 if n >= 50 else 1},
+    }
 
 
 def fit_topics(texts: list[str], embeddings: np.ndarray, min_topic_size: int | None = None) -> TopicModelResult:
@@ -30,30 +44,31 @@ def fit_topics(texts: list[str], embeddings: np.ndarray, min_topic_size: int | N
     from sklearn.feature_extraction.text import CountVectorizer
     from umap import UMAP
 
-    min_size = min_topic_size or max(5, n // 40)
-    umap_model = UMAP(
-        n_neighbors=min(15, n - 1),
-        n_components=min(5, n - 2),
-        min_dist=0.0,
-        metric="cosine",
-        random_state=RANDOM_STATE,
-    )
-    hdbscan_model = HDBSCAN(
-        min_cluster_size=min_size,
-        min_samples=max(2, min_size // 2),
-        metric="euclidean",
-        cluster_selection_method="eom",
-        prediction_data=True,
-    )
-    vectorizer = CountVectorizer(stop_words="english", ngram_range=(1, 2), min_df=2 if n >= 50 else 1)
-    model = BERTopic(
-        umap_model=umap_model,
-        hdbscan_model=hdbscan_model,
-        vectorizer_model=vectorizer,
-        calculate_probabilities=False,
-        verbose=False,
-    )
-    topics, probs = model.fit_transform(texts, embeddings=embeddings)
+    p = model_parameters(n, min_topic_size)
+    notes: list[str] = []
+
+    def build(min_df: int):
+        umap_model = UMAP(random_state=RANDOM_STATE, **p["umap"])
+        hdbscan_model = HDBSCAN(prediction_data=True, **p["hdbscan"])
+        vz = p["vectorizer"]
+        vectorizer = CountVectorizer(stop_words=vz["stop_words"], ngram_range=tuple(vz["ngram_range"]), min_df=min_df)
+        return BERTopic(
+            umap_model=umap_model, hdbscan_model=hdbscan_model, vectorizer_model=vectorizer,
+            calculate_probabilities=False, verbose=False,
+        )
+
+    min_df = p["vectorizer"]["min_df"]
+    try:
+        model = build(min_df)
+        topics, probs = model.fit_transform(texts, embeddings=embeddings)
+    except ValueError as exc:
+        # BERTopic fits the vectorizer on per-TOPIC documents, so min_df=2 can prune every term when topics
+        # share no vocabulary. Retry once with min_df=1 and say so; any other error propagates.
+        if "pruning" not in str(exc) or min_df <= 1:
+            raise
+        notes.append("vectorizer min_df lowered from 2 to 1: every term was pruned (topics share no vocabulary)")
+        model = build(1)
+        topics, probs = model.fit_transform(texts, embeddings=embeddings)
 
     terms: dict[int, list[str]] = {}
     for t in set(topics):
@@ -71,4 +86,5 @@ def fit_topics(texts: list[str], embeddings: np.ndarray, min_topic_size: int | N
         topic_terms=terms,
         n_noise=int(sum(1 for t in topics if t == -1)),
         model=model,
+        notes=notes or None,
     )
