@@ -1,18 +1,20 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { useAsync } from "../../hooks/useAsync";
 import { getDiscoveryOverview } from "../../services/trends";
+import { unreadCount } from "../../services/monitoring";
 import Icon from "../common/Icon";
 import { fmtAge } from "../common/ui";
 
 const PRIMARY = [
   { to: "/", label: "Discover", end: true },
   { to: "/research", label: "Investigate", end: false },
-  { to: "/sources", label: "Monitor", end: false },
+  { to: "/monitor", label: "Monitor", end: false },
 ];
 const SECONDARY = [
   { to: "/trends", label: "All trends" },
   { to: "/runs", label: "Analysis runs" },
+  { to: "/sources", label: "Sources" },
   { to: "/saved", label: "Saved" },
   { to: "/history", label: "History" },
   { to: "/settings", label: "Settings" },
@@ -21,6 +23,23 @@ const SECONDARY = [
 const primaryClass = ({ isActive }: { isActive: boolean }) =>
   `px-3 py-3 text-sm font-medium border-b-2 ${isActive ? "border-brand-600 text-slate-900" : "border-transparent text-slate-500 hover:text-slate-900"}`;
 const secondaryClass = ({ isActive }: { isActive: boolean }) => `px-2 py-1 text-xs ${isActive ? "text-slate-900 font-medium" : "text-slate-500 hover:text-slate-900"}`;
+
+/** In-app notification bell with the unread count; refreshes on a slow poll and when the notifications page changes something. */
+function NotificationBell() {
+  const [n, setN] = useState<number | null>(null);
+  useEffect(() => {
+    const load = () => unreadCount().then((r) => setN(r.unread)).catch(() => setN(null));
+    load();
+    const t = setInterval(load, 60000);
+    window.addEventListener("notifications-changed", load);
+    return () => { clearInterval(t); window.removeEventListener("notifications-changed", load); };
+  }, []);
+  return (
+    <NavLink to="/monitor/notifications" className="relative text-xs text-slate-600 hover:text-slate-900" aria-label={`Notifications${n ? `, ${n} unread` : ""}`}>
+      Alerts{n ? <span className="ml-1 rounded-full bg-brand-600 px-1.5 py-0.5 text-[10px] font-medium text-white" data-testid="unread-badge">{n > 99 ? "99+" : n}</span> : null}
+    </NavLink>
+  );
+}
 
 /** Data freshness: age of the latest COMPLETED analysis run (a failed run never changes it). */
 function FreshnessIndicator() {
@@ -63,6 +82,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-4">
+            <NotificationBell />
             <FreshnessIndicator />
             <button className="md:hidden" onClick={() => setOpen((o) => !o)} aria-label="Toggle navigation" aria-expanded={open}>
               <Icon name="menu" />

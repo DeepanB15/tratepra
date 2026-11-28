@@ -351,3 +351,39 @@ export interface DossierListItem {
   generated_at: string | null;
   time_range: string;
 }
+
+// ---- Phase 3: monitoring ----
+export type Severity = "informational" | "important" | "critical";
+export interface MonitorSnapshot {
+  observation_id: string; run_id: string | null; observed_at: string; window_start: string; window_end: string; trend_score: number | null;
+  score_coverage: number | null; growth: number | null; momentum_pp: number | null; momentum_direction: string | null; novelty: number | null;
+  document_volume: number | null; sources: number | null; lifecycle: string | null; formula_version: string | null;
+  lifecycle_changed?: boolean; comparable_with_previous?: boolean | null;
+}
+export interface TrendEventItem {
+  id: string; topic_id: string | null; topic_name: string | null; event_type: string; severity: Severity; title: string; description: string | null;
+  previous_value: number | null; current_value: number | null; change_percentage: number | null; evidence: { document_id: string; title: string; url: string | null; published_at: string | null }[];
+  explanation: string | null; details: Record<string, any> | null; detection_version: string; state: "new" | "read" | "dismissed" | "archived"; detected_at: string; has_evidence: boolean;
+}
+export interface MonitorNotification { id: string; event_id: string; severity: Severity; read: boolean; read_at: string | null; dismissed: boolean; created_at: string; event: TrendEventItem }
+export interface WatchRow {
+  topic_id: string; topic_name: string; monitoring_enabled: boolean; priority: "high" | "normal" | "low"; user_note: string; added_at: string; last_viewed_at: string | null;
+  latest_score: number | null; previous_score: number | null; score_change: number | null; score_change_note: string | null; growth: number | null; momentum_pp: number | null;
+  momentum_direction: string | null; lifecycle: string | null; activity_state: string; document_volume: number | null; last_observation_at: string | null;
+  latest_event: TrendEventItem | null; observations: number;
+}
+export interface TrendMonitoring {
+  topic_id: string; topic_name: string; terms: string[]; followed: boolean; watch: null | { monitoring_enabled: boolean; priority: string; user_note: string; added_at: string; last_viewed_at: string | null };
+  activity_state: string; latest: MonitorSnapshot | null; observation_count: number; events: TrendEventItem[]; event_total: number;
+  dossier: null | { id: string; status: string; generated_at: string | null; has_content: boolean };
+}
+export interface JobRow { id: string; job_type: string; status: string; trigger: string; started_at: string; completed_at: string | null; duration_ms: number | null; error: string | null; attempt: number }
+export interface MonitoringStatus {
+  scheduler: { enabled: boolean; state: string; interval_minutes: number; next_scheduled_at: string | null };
+  last_successful: Record<string, JobRow | null>; last_cycle: JobRow | null; latest_failures: JobRow[]; monitored_trends: number; latest_trend_run_completed_at: string | null;
+}
+export interface MonitoringOverview {
+  followed: number; active_monitored: number; new_events: number; important_events_7d: number; gaining_momentum: WatchRow[]; declining: WatchRow[];
+  latest_cycle: JobRow | null; data_freshness: { latest_trend_run_completed_at: string | null }; unread_notifications: number;
+}
+export interface MonitorPreferences { min_notification_severity: Severity; muted_event_types: string[]; notify_watchlist_only: boolean }

@@ -10,6 +10,12 @@ import Sources from "./pages/Sources";
 import Settings from "./pages/Settings";
 import TrendDetail from "./pages/TrendDetail";
 import Trends from "./pages/Trends";
+import MonitorOverview from "./pages/monitor/MonitorOverview";
+import Watchlist from "./pages/monitor/Watchlist";
+import Activity from "./pages/monitor/Activity";
+import Notifications from "./pages/monitor/Notifications";
+import MonitorSettings from "./pages/monitor/MonitorSettings";
+import TrendMonitor from "./pages/monitor/TrendMonitor";
 
 export default function App() {
   return (
@@ -21,6 +27,12 @@ export default function App() {
         <Route path="/dossiers/:id" element={<Dossier />} />
         <Route path="/trends" element={<Trends />} />
         <Route path="/trends/:id" element={<TrendDetail />} />
+        <Route path="/monitor" element={<MonitorOverview />} />
+        <Route path="/monitor/watchlist" element={<Watchlist />} />
+        <Route path="/monitor/activity" element={<Activity />} />
+        <Route path="/monitor/notifications" element={<Notifications />} />
+        <Route path="/monitor/settings" element={<MonitorSettings />} />
+        <Route path="/monitor/trends/:id" element={<TrendMonitor />} />
         <Route path="/runs" element={<Runs />} />
         <Route path="/saved" element={<Saved />} />
         <Route path="/history" element={<History />} />

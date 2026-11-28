@@ -67,6 +67,32 @@ with SessionLocal() as db:
     db.execute(update(Document).values(description=Document.normalized_text))
     db.commit()
     recompute(db, NOW, False, keyword_fit())
+
+# Monitoring seed: give the newest observation of each topic a *comparable* earlier completed snapshot (lower growth/score)
+# so that follow -> detection -> events -> notifications can be exercised in the browser. Synthetic, dev only.
+from datetime import timedelta  # noqa: E402
+
+from sqlalchemy import select  # noqa: E402
+
+from app.models import TrendObservation, TrendRun  # noqa: E402
+
+with SessionLocal() as db:
+    for cur in db.scalars(select(TrendObservation).where(TrendObservation.run_id.is_not(None))).all():
+        run = db.get(TrendRun, cur.run_id)
+        prev_run = TrendRun(run_key=f"e2e-prev-{cur.id}", status="completed", started_at=run.started_at - timedelta(days=7),
+                            completed_at=run.completed_at - timedelta(days=7), window_end=run.window_end - timedelta(days=7), formula_version=run.formula_version)
+        db.add(prev_run)
+        db.flush()
+        # the seeded corpus is too small for a scored observation (score withheld); give the *current* one explicit synthetic values
+        srcs = {"google_news": 4, "reddit": 3, "hacker_news": 3}
+        cur.trend_score, cur.growth, cur.lifecycle = 60.0, 40.0, "growing"
+        cur.raw_signals = {**(cur.raw_signals or {}), "growth_pct": 40.0, "momentum_pp": 45.0, "momentum_direction": "accelerating", "source_counts": srcs}
+        cur.coverage = {**(cur.coverage or {}), "signal_weight_coverage": 0.9}
+        db.add(TrendObservation(topic_id=cur.topic_id, run_id=prev_run.id, window_start=cur.window_start - timedelta(days=7), window_end=cur.window_end - timedelta(days=7),
+                                document_volume=max(1, (cur.document_volume or 2) // 2), growth=-5.0, trend_score=(cur.trend_score or 40) - 20, lifecycle="emerging",
+                                formula_version=cur.formula_version, model_version=cur.model_version, created_at=cur.created_at - timedelta(days=7),
+                                raw_signals={**(cur.raw_signals or {}), "growth_pct": -5.0, "source_counts": srcs}, coverage=cur.coverage))
+    db.commit()
 print("seeded; starting server on :8010", flush=True)
 get_settings()
 import uvicorn  # noqa: E402

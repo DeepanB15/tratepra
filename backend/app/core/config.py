@@ -93,6 +93,35 @@ class Settings(BaseSettings):
     dossier_article_refresh_max: int = 5  # bounded article re-extraction per generation
     dossier_support_overlap: float = 0.6  # claim token coverage for 'supported'; MIN_SUPPORT_OVERLAP..this = partial
 
+    # Phase 3: monitoring. Thresholds are used only through MonitoringConfig (monitoring/config.py).
+    monitoring_scheduler_enabled: bool = False  # opt-in: nothing runs in the background unless enabled
+    monitoring_interval_minutes: int = 360
+    monitoring_tick_seconds: int = 30
+    monitoring_inline_execution: bool = False  # tests/dev: run manual triggers in the request
+    monitoring_job_max_attempts: int = 2
+    monitoring_job_retry_delay_seconds: float = 5.0
+    monitoring_running_timeout_minutes: int = 120  # a 'running' job row older than this is treated as interrupted
+    monitoring_collection_queries: str = ""  # comma-separated extra queries; watched trend names are always added
+    monitoring_collection_max_queries: int = 8
+    monitoring_collection_time_range: str = "7d"
+    monitoring_min_observations: int = 2  # comparable completed-run observations needed before comparing
+    monitoring_min_documents: int = 8  # topic volume below this never raises growth/decline/spike events
+    monitoring_min_sources: int = 2  # distinct sources required for growth/spike/new-emerging events
+    monitoring_min_growth_change_pp: float = 15.0  # growth_pct must change by this many points
+    monitoring_min_volume_change: int = 5  # and document volume by at least this many documents
+    monitoring_decline_pct: float = 30.0  # relative volume drop to call a decline
+    monitoring_spike_baseline_window: int = 5  # prior comparable observations used as the baseline
+    monitoring_spike_z: float = 3.0  # deviation (in baseline standard deviations) for a spike
+    monitoring_spike_min_ratio: float = 1.5
+    monitoring_critical_spike_ratio: float = 3.0
+    monitoring_new_documents_min: int = 3  # new member documents needed for a 'new supporting evidence' event
+    monitoring_related_similarity: float = 0.75  # topic-embedding cosine for 'new related topic'
+    monitoring_emerging_min_score: float = 0.0
+    monitoring_emerging_important_score: float = 70.0
+    monitoring_cooldown_hours: float = 24.0  # same event type for same topic within this window is suppressed unless severity rises
+    monitoring_window_tolerance_days: float = 1.0  # snapshot windows must match within this to be compared
+    monitoring_llm_explanations: bool = False
+
     @property
     def is_production(self) -> bool:
         return self.app_env.lower() != "development"

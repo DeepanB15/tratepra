@@ -1,0 +1,353 @@
+{
+ "description": "Synthetic controlled change-detection cases. Expected event types come from the written rules in docs/phase-3, NOT from running the detector.",
+ "cases": [
+  {
+   "id": "genuine_acceleration",
+   "category": "acceleration",
+   "snapshots": [
+    {
+     "vol": 20,
+     "growth": 10
+    },
+    {
+     "vol": 31,
+     "growth": 45
+    }
+   ],
+   "expected": [
+    "growth_acceleration"
+   ]
+  },
+  {
+   "id": "small_fluctuation",
+   "category": "noise",
+   "snapshots": [
+    {
+     "vol": 20,
+     "growth": 10
+    },
+    {
+     "vol": 22,
+     "growth": 14
+    }
+   ],
+   "expected": []
+  },
+  {
+   "id": "pp_change_without_volume_change",
+   "category": "noise",
+   "snapshots": [
+    {
+     "vol": 20,
+     "growth": 10
+    },
+    {
+     "vol": 21,
+     "growth": 40
+    }
+   ],
+   "expected": []
+  },
+  {
+   "id": "slowdown_still_growing",
+   "category": "slowdown",
+   "snapshots": [
+    {
+     "vol": 40,
+     "growth": 70
+    },
+    {
+     "vol": 44,
+     "growth": 30
+    }
+   ],
+   "expected": [
+    "growth_slowdown"
+   ]
+  },
+  {
+   "id": "decline",
+   "category": "decline",
+   "snapshots": [
+    {
+     "vol": 60,
+     "growth": 20
+    },
+    {
+     "vol": 30,
+     "growth": -30
+    }
+   ],
+   "expected": [
+    "activity_decline"
+   ]
+  },
+  {
+   "id": "lifecycle_forward",
+   "category": "lifecycle",
+   "snapshots": [
+    {
+     "vol": 20,
+     "growth": 12,
+     "lifecycle": "emerging"
+    },
+    {
+     "vol": 21,
+     "growth": 12,
+     "lifecycle": "growing"
+    }
+   ],
+   "expected": [
+    "lifecycle_transition"
+   ]
+  },
+  {
+   "id": "lifecycle_unchanged",
+   "category": "lifecycle",
+   "snapshots": [
+    {
+     "vol": 20,
+     "growth": 12,
+     "lifecycle": "growing"
+    },
+    {
+     "vol": 21,
+     "growth": 12,
+     "lifecycle": "growing"
+    }
+   ],
+   "expected": []
+  },
+  {
+   "id": "spike_stable_baseline",
+   "category": "spike",
+   "snapshots": [
+    {
+     "vol": 20
+    },
+    {
+     "vol": 21
+    },
+    {
+     "vol": 19
+    },
+    {
+     "vol": 20
+    },
+    {
+     "vol": 21
+    },
+    {
+     "vol": 60
+    }
+   ],
+   "expected": [
+    "activity_spike"
+   ]
+  },
+  {
+   "id": "no_spike_noisy_baseline",
+   "category": "spike",
+   "snapshots": [
+    {
+     "vol": 10
+    },
+    {
+     "vol": 40
+    },
+    {
+     "vol": 15
+    },
+    {
+     "vol": 45
+    },
+    {
+     "vol": 12
+    },
+    {
+     "vol": 44
+    }
+   ],
+   "expected": []
+  },
+  {
+   "id": "spike_baseline_too_short",
+   "category": "spike",
+   "snapshots": [
+    {
+     "vol": 20
+    },
+    {
+     "vol": 60
+    }
+   ],
+   "expected": []
+  },
+  {
+   "id": "incompatible_formula",
+   "category": "comparability",
+   "snapshots": [
+    {
+     "vol": 20,
+     "growth": 10
+    },
+    {
+     "vol": 60,
+     "growth": 90,
+     "formula": "v2.0"
+    }
+   ],
+   "expected": []
+  },
+  {
+   "id": "incompatible_window",
+   "category": "comparability",
+   "snapshots": [
+    {
+     "vol": 20,
+     "growth": 10,
+     "days": 14
+    },
+    {
+     "vol": 60,
+     "growth": 90,
+     "days": 30
+    }
+   ],
+   "expected": []
+  },
+  {
+   "id": "missing_growth_not_zero",
+   "category": "missing_values",
+   "snapshots": [
+    {
+     "vol": 40,
+     "growth": 30
+    },
+    {
+     "vol": 44,
+     "growth": null
+    }
+   ],
+   "expected": []
+  },
+  {
+   "id": "single_snapshot",
+   "category": "comparability",
+   "snapshots": [
+    {
+     "vol": 20,
+     "growth": 10
+    }
+   ],
+   "expected": []
+  },
+  {
+   "id": "low_volume_gate",
+   "category": "gating",
+   "snapshots": [
+    {
+     "vol": 3,
+     "growth": 10
+    },
+    {
+     "vol": 5,
+     "growth": 60
+    }
+   ],
+   "expected": []
+  },
+  {
+   "id": "low_source_diversity_gate",
+   "category": "gating",
+   "snapshots": [
+    {
+     "vol": 20,
+     "growth": 10,
+     "sources": 1
+    },
+    {
+     "vol": 31,
+     "growth": 45,
+     "sources": 1
+    }
+   ],
+   "expected": []
+  },
+  {
+   "id": "disappearance_completed_runs",
+   "category": "disappearance",
+   "snapshots": [
+    {
+     "vol": 20,
+     "growth": 10
+    },
+    {
+     "vol": 21,
+     "growth": 12
+    }
+   ],
+   "activity": {
+    "state": "inactive",
+    "missed_runs": 3,
+    "last_observed_at": "2026-10-08"
+   },
+   "expected": [
+    "activity_disappearance"
+   ]
+  },
+  {
+   "id": "disappearance_suppressed_on_failed_collection",
+   "category": "failure_policy",
+   "snapshots": [
+    {
+     "vol": 20,
+     "growth": 10
+    },
+    {
+     "vol": 21,
+     "growth": 12
+    }
+   ],
+   "activity": {
+    "state": "inactive",
+    "missed_runs": 3,
+    "last_observed_at": "2026-10-08"
+   },
+   "collection_failed": true,
+   "expected": []
+  },
+  {
+   "id": "decline_suppressed_on_failed_collection",
+   "category": "failure_policy",
+   "snapshots": [
+    {
+     "vol": 60,
+     "growth": 20
+    },
+    {
+     "vol": 30,
+     "growth": -30
+    }
+   ],
+   "collection_failed": true,
+   "expected": []
+  },
+  {
+   "id": "new_emerging_first_snapshot",
+   "category": "new_trend",
+   "snapshots": [
+    {
+     "vol": 15,
+     "growth": 50,
+     "lifecycle": "emerging",
+     "score": 75.0
+    }
+   ],
+   "is_new_topic": true,
+   "expected": [
+    "new_emerging_trend"
+   ]
+  }
+ ]
+}
