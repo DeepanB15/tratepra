@@ -222,3 +222,22 @@ def test_publisher_prefers_metadata_then_host():
     assert publisher_of(d) == "example.org"
     d.metadata_ = {"publisher": "Example Times"}
     assert publisher_of(d) == "Example Times"
+
+
+# ---- evaluation metrics ---------------------------------------------------------------------
+def test_research_quality_metrics_are_computed_not_defaulted():
+    from app.evaluation.research_quality import diversity, dossier_metrics, duplicate_rate, mean_of
+
+    assert diversity([]) == {"distinct_publishers": 0, "top_share": None}
+    assert diversity(["a", "a", "b", "c"]) == {"distinct_publishers": 3, "top_share": 0.5}
+    assert duplicate_rate([]) is None and duplicate_rate(["x", "x", "y", "z"]) == 0.25
+    claims = [
+        {"status": "supported", "supporting_evidence_ids": ["e"], "contradictory_evidence_ids": []},
+        {"status": "unverified", "supporting_evidence_ids": [], "contradictory_evidence_ids": []},
+    ]
+    dossier = {"sections": {"overview": {}, "evidence_gaps": {"items": [{"code": "single_publisher"}]}}}
+    m = dossier_metrics(dossier, claims, {"single_publisher", "no_recent_evidence"})
+    assert m["claim_support_rate"] == 0.5 and m["unsupported_claim_rate"] == 0.5 and m["citation_coverage"] == 0.5
+    assert m["gap_recall"] == 0.5 and m["gap_precision"] == 1.0 and m["completeness"] == round(2 / 7, 3)
+    assert dossier_metrics(dossier, [])["claim_support_rate"] is None
+    assert mean_of([{"a": None}], "a") is None

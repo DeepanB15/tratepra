@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import Layout from "./components/layout/Layout";
 import History from "./pages/History";
+import Dossier from "./pages/Dossier";
 import Home from "./pages/Home";
 import Research from "./pages/Research";
 import Runs from "./pages/Runs";
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/research" element={<Research />} />
         <Route path="/research/:id" element={<Research />} />
+        <Route path="/dossiers/:id" element={<Dossier />} />
         <Route path="/trends" element={<Trends />} />
         <Route path="/trends/:id" element={<TrendDetail />} />
         <Route path="/runs" element={<Runs />} />

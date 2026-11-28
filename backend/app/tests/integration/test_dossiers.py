@@ -163,6 +163,7 @@ def test_llm_failure_still_produces_a_dossier(env, monkeypatch):
     d = client.get(f"/api/research/dossiers/{make(client).json()['id']}").json()
     assert d["processing"]["status"] == "completed" and d["sections"]["overview"]["degraded"] is True
     assert any(g["code"] == "llm_unavailable" for g in d["sections"]["evidence_gaps"]["items"])
+    assert d["claim_count"] == 0 and d["sections"]["overview"]["text"].startswith("The language model was unavailable")
 
 
 def test_article_text_is_used_for_excerpt_and_citation_verification(env):
@@ -323,3 +324,30 @@ def test_migration_004_up_down_and_idempotent_with_create_all(engine):
         for t in ("dossier_evidence", "dossier_claims", "claim_evidence"):
             assert c.execute(text(f"SELECT to_regclass('public.{t}')")).scalar()
     assert alembic("upgrade", "head").returncode == 0
+
+
+def test_synthetic_retrieval_regression_metrics(env):
+    """Controlled regression on three synthetic topical clusters (labels are by construction). This guards the
+    pipeline wiring; it is NOT an estimate of real-world retrieval quality."""
+    from app.evaluation.research_quality import diversity, duplicate_rate
+    from app.evaluation.retrieval import aggregate, evaluate_query
+    from app.research.context_builder import select_evidence
+    from app.research.query_processor import process_query
+    from app.research.ranker import rank
+    from app.research.retriever import retrieve
+
+    from .helpers import seed_three_clusters
+
+    _, db, *_ = env
+    seed_three_clusters(db, 10)
+    rows = []
+    for cluster, q in [("kubernetes", "kubernetes operators scaling"), ("rust", "rust compiler borrow"), ("solar", "solar battery storage")]:
+        pq = process_query(q, "30d")
+        cands = retrieve(db, pq.cleaned, ["google_news"], "30d", keywords=pq.keywords, phrases=pq.phrases)
+        chosen = select_evidence(rank(cands, pq.keywords, 30, phrases=pq.phrases), max_items=5)
+        relevant = {u for (u,) in db.execute(select(Document.url).where(Document.external_id.like(f"{cluster}-%")))}
+        m = evaluate_query([r.candidate.document.url for r in chosen], relevant, 5)
+        m["dup"] = duplicate_rate([r.candidate.document.canonical_url or r.candidate.document.url for r in chosen])
+        rows.append(m)
+    print("SYNTHETIC_REGRESSION", aggregate(rows))
+    assert all(r["precision@5"] == 1.0 and r["mrr"] == 1.0 for r in rows)

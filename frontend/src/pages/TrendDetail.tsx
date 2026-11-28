@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { createDossier } from "../services/dossiers";
 import { ContributionChart, HistoryVolumeChart, ScoreHistoryChart, VolumeChart } from "../components/charts/Charts";
 import { ActivityBadge, ErrorBox, LifecycleBadge, Loading, MomentumValue, ScoreValue, fmtAge, fmtDate, fmtNum, fmtPct } from "../components/common/ui";
 import { useAsync } from "../hooks/useAsync";
@@ -29,6 +30,16 @@ export default function TrendDetail() {
   const detail = useAsync(() => getTrend(id), [id]);
   const history = useAsync(() => getTrendHistory(id), [id]);
   const [saved, setSaved] = useState(false);
+  const navigate = useNavigate();
+  const [investigating, setInvestigating] = useState(false);
+  const [investigateError, setInvestigateError] = useState<string | null>(null);
+  const investigate = () => {
+    setInvestigating(true);
+    setInvestigateError(null);
+    createDossier({ topic_id: id, time_range: "30d" })
+      .then((d) => navigate(`/dossiers/${d.id}`))
+      .catch((e) => { setInvestigateError(e.message); setInvestigating(false); });
+  };
 
   if (detail.loading) return <Loading />;
   if (detail.error || !detail.data) return <ErrorBox message={detail.error ?? "Trend not found"} onRetry={detail.reload} />;
@@ -54,10 +65,16 @@ export default function TrendDetail() {
             <span>First seen {fmtDate(t.first_seen_at)}</span>
           </div>
         </div>
+        <div className="flex gap-2">
+        <button className="rounded border border-slate-800 bg-slate-800 px-3 py-1 text-xs text-white disabled:opacity-50" disabled={investigating} onClick={investigate}>
+          {investigating ? "Opening…" : "Investigate this trend"}
+        </button>
         <button className="rounded border border-stone-300 bg-white px-3 py-1 text-xs disabled:opacity-50" disabled={saved} onClick={() => saveItem("trend", t.topic_id, t.topic_name).then(() => setSaved(true))}>
           {saved ? "Saved ✓" : "Save"}
         </button>
+        </div>
       </div>
+      {investigateError && <ErrorBox message={investigateError} />}
 
       {t.activity_state !== "active" && (
         <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="status">

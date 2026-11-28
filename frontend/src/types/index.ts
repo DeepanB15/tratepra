@@ -270,3 +270,84 @@ export interface SavedItem {
   title: string;
   created_at: string;
 }
+
+// ---- Phase 2: research dossiers ----
+export type DossierStatus = "pending" | "running" | "completed" | "failed";
+export type EvidenceRole = "supporting" | "contradictory" | "context";
+export type ClaimStatus = "supported" | "partially_supported" | "contradicted" | "unverified" | "insufficient_evidence";
+export interface QualityDimension {
+  label: "strong" | "moderate" | "limited" | "insufficient";
+  text: string;
+  explanation: string;
+  [k: string]: unknown;
+}
+export interface Dossier {
+  id: string;
+  topic_id: string | null;
+  title: string;
+  query: string;
+  time_range: string;
+  sources: string[];
+  processing: { status: DossierStatus; error: string | null; started_at: string | null; completed_at: string | null; interrupted: boolean; has_content: boolean };
+  generated_at: string | null;
+  generation: number;
+  model: string;
+  sections: {
+    overview?: { text: string; degraded: boolean; claims_total: number; claims_flagged: number; note: string };
+    key_developments?: { items: { date: string | null; title: string; publisher: string; document_id: string; citation: number; summary: string; article_status: string }[] };
+    supporting_evidence?: { items: DossierEvidenceItem[] };
+    contradictory_evidence?: { items: DossierEvidenceItem[]; text: string | null; method: string };
+    key_entities?: { items: { name: string; origin: string; documents: number; publishers: number }[]; method: string };
+    evidence_gaps?: { items: { code: string; text: string; severity: string }[] };
+    research_questions?: { items: string[]; note: string };
+  };
+  evidence_quality: {
+    dimensions?: Record<string, QualityDimension>;
+    summary?: string;
+    rules?: Record<string, string>;
+    note?: string;
+  };
+  diagnostics: Record<string, unknown>;
+  versions: Record<string, unknown>;
+  evidence_count: number;
+  claim_count: number;
+  limitations: string[];
+  created?: boolean;
+}
+export interface DossierEvidenceItem {
+  id: string;
+  document_id: string;
+  rank: number;
+  role: EvidenceRole;
+  role_reason: string;
+  relevance: number;
+  title: string;
+  url: string | null;
+  publisher: string;
+  source: string;
+  published_at: string | null;
+  excerpt: string;
+  excerpt_basis: "article" | "rss";
+  article_status: string;
+}
+export interface DossierClaim {
+  id: string;
+  claim_no: number;
+  section: string;
+  text: string;
+  claim_type: string;
+  status: ClaimStatus;
+  explanation: string;
+  overlap: number | null;
+  source_coverage: number;
+  supporting_evidence_ids: string[];
+  contradictory_evidence_ids: string[];
+}
+export interface DossierListItem {
+  id: string;
+  topic_id: string | null;
+  title: string;
+  status: DossierStatus;
+  generated_at: string | null;
+  time_range: string;
+}

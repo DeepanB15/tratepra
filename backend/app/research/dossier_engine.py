@@ -24,6 +24,10 @@ NO_CONTRADICTION_TEXT = "No contradictory evidence was identified in the availab
 NO_EVIDENCE_TEXT = (
     "Insufficient evidence: no relevant documents were found in the available dataset for this subject and time range."
 )
+DEGRADED_TEXT = (
+    "The language model was unavailable, so no synthesized overview was generated and no statements were claim-checked. "
+    "The retrieved evidence is listed in the sections below."
+)
 MAX_DEVELOPMENTS = 8
 MAX_ENTITIES = 12
 MAX_QUESTIONS = 8
@@ -80,7 +84,9 @@ def build_dossier(
     ]
 
     # ---- claims (A / key findings), verified deterministically ---------------------------------
-    claims = [verify_claim(t, section, views, support_threshold) for t, section in extract_claims(overview, key_findings)]
+    # A degraded (extractive) overview asserts nothing of its own: it is boilerplate plus feed titles, and
+    # "verifying" a title against its own item would be circular. So no claims are created in that case.
+    claims = [] if degraded else [verify_claim(t, section, views, support_threshold) for t, section in extract_claims(overview, key_findings)]
     for n, c in enumerate(claims, start=1):
         c.explanation = c.explanation or "No additional detail."
 
@@ -134,9 +140,12 @@ def build_dossier(
 
     # ---- sections ------------------------------------------------------------------------------
     kept = [c for c in claims if c.status in ("supported", "partially_supported")]
-    overview_text = " ".join(c.text for c in kept if c.section == "overview") or (
-        NO_EVIDENCE_TEXT if not docs else "No statement in the generated overview could be verified against the retrieved evidence; see the claim list and evidence."
-    )
+    if degraded and docs:
+        overview_text = DEGRADED_TEXT
+    else:
+        overview_text = " ".join(c.text for c in kept if c.section == "overview") or (
+            NO_EVIDENCE_TEXT if not docs else "No statement in the generated overview could be verified against the retrieved evidence; see the claim list and evidence."
+        )
     sec_a = {
         "text": overview_text,
         "model": model,
@@ -158,7 +167,9 @@ def build_dossier(
     sec_b = {"items": developments, "ordering": "chronological; undated items last"}
 
     def ev_out(r):
-        return {k: (str(v) if k == "document_id" else v) for k, v in r.items() if k != "key"}
+        out = {k: (str(v) if k == "document_id" else v) for k, v in r.items() if k != "key"}
+        out["published_at"] = r["published"]  # same field name as the evidence endpoint
+        return out
 
     sec_c = {"items": [ev_out(r) for r in evidence_rows if r["role"] == "supporting"]}
     contra = [ev_out(r) for r in evidence_rows if r["role"] == "contradictory"]
