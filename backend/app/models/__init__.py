@@ -13,3 +13,4 @@ from app.models.entities import (  # noqa: F401
     TrendRun,
 )
 from app.models.dossier import ClaimEvidence, DossierClaim, DossierEvidence, ResearchDossier  # noqa: F401
+from app.models.monitoring import MonitoringJobRun, MonitoringPreference, Notification, TrendEvent, TrendWatchlist  # noqa: E402,F401

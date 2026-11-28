@@ -7,7 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import dashboard, dossiers, history, internal, research, saved, sources, trends
+from app.api import dashboard, dossiers, monitoring, history, internal, research, saved, sources, trends
 from app.core import health
 from app.core.config import get_settings
 from app.core.database import init_db
@@ -35,7 +35,11 @@ async def lifespan(_: FastAPI):
         ensure_sources()
     except Exception as exc:  # DB not migrated / unreachable: /ready reports it, the app still starts
         log.error("Could not register sources (is the schema migrated?): %s", exc)
+    from app.monitoring.jobs import start_scheduler, stop_scheduler
+
+    start_scheduler()  # no-op unless MONITORING_SCHEDULER_ENABLED=true
     yield
+    stop_scheduler()
     from app.services.dossier_service import shutdown_workers
 
     shutdown_workers()
@@ -95,6 +99,7 @@ def ready():
     return JSONResponse(status_code=503 if report["status"] == "not_ready" else 200, content=report)
 
 
+app.include_router(monitoring.router, prefix="/api/monitoring", tags=["monitoring"])
 app.include_router(dossiers.router, prefix="/api/research/dossiers", tags=["dossiers"])
 app.include_router(research.router, prefix="/api/research", tags=["research"])
 app.include_router(trends.router, prefix="/api/trends", tags=["trends"])

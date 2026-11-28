@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -291,3 +291,35 @@ class DossierClaimOut(BaseModel):
     source_coverage: int
     supporting_evidence_ids: list[str]
     contradictory_evidence_ids: list[str]
+
+
+# ---------------------------------------------------------------- Phase 3: monitoring
+class WatchlistAdd(BaseModel):
+    topic_id: str = Field(max_length=64)
+    priority: Literal["low", "normal", "high"] = "normal"
+    user_note: str = Field(default="", max_length=2000)
+
+
+class WatchlistPatch(BaseModel):
+    monitoring_enabled: bool | None = None
+    priority: Literal["low", "normal", "high"] | None = None
+    user_note: str | None = Field(default=None, max_length=2000)
+
+
+class EventPatch(BaseModel):
+    state: Literal["new", "read", "dismissed", "archived"]
+
+
+class NotificationPatch(BaseModel):
+    read: bool | None = None
+    dismissed: bool | None = None
+
+
+class PreferencesIn(BaseModel):
+    min_notification_severity: Literal["informational", "important", "critical"] = "informational"
+    muted_event_types: list[str] = Field(default_factory=list, max_length=20)
+    notify_watchlist_only: bool = False
+
+
+class JobTrigger(BaseModel):
+    job: Literal["collection", "recompute", "detection", "evidence", "notifications", "cycle"]
